@@ -1,0 +1,4039 @@
+<!DOCTYPE html>
+<!-- NIGHT SHIFT: PULSE - 夜間病棟 - -->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NIGHT SHIFT: PULSE - 夜間病棟 -</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #030407;
+      font-family: 'DotGothic16', 'Inter', sans-serif;
+      color: #e2e8f0;
+      touch-action: none;
+    }
+    #gameCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      image-rendering: pixelated;
+    }
+    /* VHS / CRT Scanline & Vignette */
+    .crt-overlay {
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.35) 50%
+      );
+      background-size: 100% 4px;
+      pointer-events: none !important;
+    }
+    .fear-vignette {
+      pointer-events: none !important;
+      transition: box-shadow 0.15s ease;
+    }
+    @keyframes violentShake {
+      0% { transform: translate(0, 0) scale(1.02) rotate(0deg); }
+      20% { transform: translate(-12px, 8px) scale(1.08) rotate(-2deg); }
+      40% { transform: translate(10px, -10px) scale(1.12) rotate(2deg); }
+      60% { transform: translate(-10px, -6px) scale(1.06) rotate(-1.5deg); }
+      80% { transform: translate(12px, 10px) scale(1.1) rotate(1.5deg); }
+      100% { transform: translate(0, 0) scale(1.04) rotate(0deg); }
+    }
+    .jumpscare-shake {
+      animation: violentShake 0.08s infinite;
+    }
+    @keyframes pulseBeat {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+    .heartbeat-pulse {
+      animation: pulseBeat 0.45s infinite;
+    }
+    .ui-tap-btn {
+      pointer-events: auto !important;
+      touch-action: manipulation;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.12s ease;
+    }
+    .ui-tap-btn:active {
+      transform: scale(0.92);
+      filter: brightness(1.3);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.7);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.45);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden bg-black select-none">
+
+  <!-- Main Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Subtle CRT & Fear Vignette Layers -->
+  <div class="crt-overlay fixed inset-0 z-10"></div>
+  <div id="fearVignette" class="fear-vignette fixed inset-0 z-10"></div>
+
+  <!-- ================= ULTRA-SLIM TOP HUD BAR (32px height, z-index: 600) ================= -->
+  <header id="topSlimHud" class="fixed top-0 left-0 right-0 h-[32px] bg-slate-950/85 border-b border-slate-800/90 px-2 flex items-center justify-between gap-1.5 z-[600] pointer-events-auto">
+    <!-- Left: Floor Badge & Current Objective -->
+    <div class="flex items-center gap-1.5 min-w-0 flex-shrink">
+      <span id="stageBadge" class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-900/90 border border-rose-500/70 text-rose-100 whitespace-nowrap">
+        1F 外来
+      </span>
+      <span id="missionText" class="text-[11px] text-amber-200 truncate max-w-[160px] sm:max-w-[290px] md:max-w-[420px]">
+        診察室の散乱したカルテから4桁の暗証番号を探せ
+      </span>
+    </div>
+
+    <!-- Center: Compact FEAR & BATTERY Bars -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <!-- FEAR Gauge -->
+      <div class="flex items-center gap-1">
+        <span class="text-[10px] font-bold text-rose-400">💓FEAR</span>
+        <div class="w-14 sm:w-20 h-2.5 bg-slate-900 border border-rose-900/80 rounded-full overflow-hidden">
+          <div id="fearBar" class="h-full bg-gradient-to-r from-rose-700 via-red-600 to-rose-400 transition-all duration-100" style="width: 0%;"></div>
+        </div>
+        <span id="fearValText" class="text-[10px] font-mono text-rose-300 w-7 text-right">0%</span>
+      </div>
+      <!-- BATTERY Gauge -->
+      <div class="flex items-center gap-1">
+        <span class="text-[10px] font-bold text-amber-300">🔦BAT</span>
+        <div class="w-14 sm:w-20 h-2.5 bg-slate-900 border border-amber-900/80 rounded-full overflow-hidden">
+          <div id="batteryBar" class="h-full bg-gradient-to-r from-amber-600 via-yellow-400 to-emerald-300 transition-all duration-100" style="width: 100%;"></div>
+        </div>
+        <span id="batteryValText" class="text-[10px] font-mono text-amber-200 w-8 text-right">100%</span>
+      </div>
+    </div>
+
+    <!-- Right: Direct Quick-Access Buttons -->
+    <div class="flex items-center gap-1 flex-shrink-0">
+      <!-- MP Display -->
+      <div class="hidden sm:flex items-center px-1.5 py-0.5 rounded bg-purple-950/90 border border-purple-500/60 text-[10px] text-purple-200 font-mono">
+        MP:<span id="mpValText" class="font-bold text-amber-300 ml-0.5">100</span>
+      </div>
+
+      <!-- Direct Floor Jump Mini-Buttons -->
+      <div class="hidden md:flex items-center bg-slate-900/90 rounded border border-slate-700 p-0.5 gap-0.5">
+        <button type="button" data-stage-jump="1" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">1F</button>
+        <button type="button" data-stage-jump="2" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">2F</button>
+        <button type="button" data-stage-jump="3" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">3F</button>
+        <button type="button" data-stage-jump="4" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">4F</button>
+        <button type="button" data-stage-jump="5" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-amber-300">B1</button>
+      </div>
+
+      <button type="button" id="hudBtnUpgrade" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-900/90 hover:bg-indigo-700 border border-indigo-400/80 text-indigo-100">
+        ⚡強化
+      </button>
+      <button type="button" id="hudBtnEndless" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-900/90 hover:bg-rose-700 border border-rose-400/80 text-rose-100">
+        ♾️無限/衣装
+      </button>
+      <button type="button" id="hudBtnCodex" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-purple-900/90 hover:bg-purple-700 border border-purple-400/80 text-purple-100">
+        📖図鑑
+      </button>
+      <button type="button" id="hudBtnCompass" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-900/90 hover:bg-sky-700 border border-sky-400/80 text-sky-100">
+        🧭誘導ON
+      </button>
+      <button type="button" id="hudBtnSupply" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-900/90 hover:bg-emerald-700 border border-emerald-400/80 text-emerald-100" title="緊急回復＆バッテリー充電">
+        ＋補給
+      </button>
+      <button type="button" id="hudBtnSound" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-800 border border-slate-600 text-slate-200">
+        🔊
+      </button>
+    </div>
+  </header>
+
+  <!-- Top-Left Minimap Interactive Overlay Button -->
+  <button type="button" id="minimapToggleHitbox" class="ui-tap-btn fixed top-[36px] left-[8px] w-[104px] h-[70px] z-[400] bg-transparent border border-transparent rounded focus:outline-none" title="タップでミニマップ拡大/縮小"></button>
+
+  <!-- Center-Top Floating Toast Notification -->
+  <div id="toastBanner" class="fixed top-[38px] left-1/2 -translate-x-1/2 z-[550] pointer-events-none transition-all duration-300 opacity-0 -translate-y-2">
+    <div id="toastText" class="px-3 py-1 rounded-full bg-slate-950/95 border border-amber-500/80 text-amber-200 text-xs shadow-lg whitespace-nowrap">
+      通知メッセージ
+    </div>
+  </div>
+
+  <!-- Stage Purified Quick Next Floor Button (Allows exploring for Secret Charts before leaving) -->
+  <div id="purifiedBanner" class="hidden fixed top-[68px] left-1/2 -translate-x-1/2 z-[560] pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.65)]">
+    <span class="text-xs font-bold text-emerald-200">✨ ボス浄化完了！極秘カルテを回収するか階段へ進めます</span>
+    <button type="button" id="btnQuickNextStage" class="ui-tap-btn px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs border border-emerald-200 shadow">
+      ⏩ すぐ次の階層へ進む
+    </button>
+  </div>
+
+  <!-- ================= GRABBED BY GHOST: TAP ONLY QTE OVERLAY (z-index: 1500) ================= -->
+  <div id="grabOverlay" class="hidden fixed inset-0 z-[1500] bg-red-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 pointer-events-auto cursor-pointer">
+    <div class="max-w-md w-full bg-slate-950/95 border-2 border-red-500 rounded-2xl p-5 text-center shadow-[0_0_50px_rgba(239,68,68,0.85)]">
+      <div class="text-red-400 text-xs font-bold tracking-widest uppercase mb-1 animate-pulse">⚠️ WARNING - 怨霊に拘束された！ ⚠️</div>
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-white mb-2">画面を連打して振り払え！</h2>
+      <p class="text-xs text-rose-200 mb-4">画面のどこでもタップ連打（またはスペースキー連打）で即脱出！</p>
+
+      <!-- Progress Bar -->
+      <div class="w-full h-5 bg-slate-900 border-2 border-rose-500 rounded-full overflow-hidden mb-4 p-0.5">
+        <div id="grabProgressBar" class="h-full bg-gradient-to-r from-amber-500 via-yellow-300 to-emerald-400 rounded-full transition-all duration-75" style="width: 0%;"></div>
+      </div>
+
+      <button type="button" id="grabTapBigBtn" class="ui-tap-btn w-full py-4 rounded-xl bg-gradient-to-b from-red-600 to-rose-800 border-2 border-amber-300 text-white font-extrabold text-xl shadow-[0_0_25px_rgba(251,191,36,0.6)] active:scale-95">
+        💥 タップ連打で脱出！ (<span id="grabTapRemain">5</span>回)
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= HIGH-RES JUMPSCARE FLASH CUT-IN (pointer-events: none) ================= -->
+  <div id="jumpscareLayer" class="hidden fixed inset-0 z-[1400] pointer-events-none flex items-center justify-center bg-black/85">
+    <canvas id="jumpscareCanvas" width="480" height="320" class="w-full h-full object-contain jumpscare-shake"></canvas>
+  </div>
+
+  <!-- ================= LANDSCAPE VIRTUAL GAMEPAD CONTROLS (z-index: 500) ================= -->
+  <!-- Bottom-Left: Virtual Joystick -->
+  <div id="leftJoystickZone" class="fixed bottom-4 left-5 w-[132px] h-[132px] rounded-full bg-slate-900/45 border-2 border-slate-400/35 z-[500] flex items-center justify-center pointer-events-auto">
+    <div class="text-[9px] text-slate-400/70 absolute top-2 font-mono pointer-events-none">MOVE</div>
+    <div id="leftJoystickKnob" class="w-[52px] h-[52px] rounded-full bg-slate-200/45 border-2 border-white/75 shadow-lg pointer-events-none transition-transform duration-75"></div>
+  </div>
+
+  <!-- Bottom-Right: Action Buttons Cluster -->
+  <div id="rightActionCluster" class="fixed bottom-4 right-5 w-[230px] h-[155px] z-[500] pointer-events-none">
+    <!-- Flash Burst Button (Attack / Stun) -->
+    <button type="button" id="btnFlashBurst" class="ui-tap-btn absolute bottom-[82px] right-[96px] w-[72px] h-[72px] rounded-full bg-cyan-950/85 border-2 border-cyan-300 text-cyan-100 flex flex-col items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.45)]">
+      <span class="text-base leading-none">⚡</span>
+      <span class="text-[10px] font-bold mt-0.5">フラッシュ</span>
+      <span class="text-[8px] text-cyan-300 font-mono">-20% BAT</span>
+    </button>
+
+    <!-- Saline Trap / Interact Gimmick Button -->
+    <button type="button" id="btnInteractOrTrap" class="ui-tap-btn absolute bottom-[6px] right-[110px] w-[70px] h-[70px] rounded-full bg-emerald-950/85 border-2 border-emerald-400 text-emerald-100 flex flex-col items-center justify-center shadow-[0_0_18px_rgba(16,185,129,0.4)]">
+      <span id="interactBtnIcon" class="text-base leading-none">💧</span>
+      <span id="interactBtnLabel" class="text-[10px] font-bold mt-0.5">食塩水</span>
+      <span id="interactBtnSub" class="text-[9px] text-emerald-300 font-mono">残:3</span>
+    </button>
+
+    <!-- Flashlight Hold / Aim Swivel Button -->
+    <div id="btnLightAim" class="ui-tap-btn absolute bottom-[10px] right-[6px] w-[88px] h-[88px] rounded-full bg-amber-950/85 border-2 border-amber-400 text-amber-100 flex flex-col items-center justify-center shadow-[0_0_22px_rgba(251,191,36,0.45)]">
+      <span class="text-lg leading-none pointer-events-none">🔦</span>
+      <span class="text-[10px] font-bold mt-0.5 pointer-events-none">ライト固定</span>
+      <span class="text-[8px] text-amber-300 pointer-events-none">長押し+スライド</span>
+    </div>
+  </div>
+
+  <!-- ================= UNIFIED 6-TAB MENU MODAL (UPGRADE / ENDLESS / STAGES / CODEX / CHARTS / ACHIEVEMENTS) ================= -->
+  <div id="menuModal" class="hidden fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 pointer-events-auto">
+    <div class="w-full max-w-4xl max-h-[92vh] bg-slate-950 border-2 border-slate-700 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+      <!-- Modal Top Header & Tab Bar -->
+      <div class="px-3 py-2 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-1">
+          <button type="button" data-menu-tab="upgrade" id="tabBtn_upgrade" class="ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-700 text-white border border-indigo-400">⚡ 能力強化</button>
+          <button type="button" data-menu-tab="endless" id="tabBtn_endless" class="ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-rose-200 border border-rose-500/60 hover:bg-slate-700">♾️ 無限・衣装・縛り</button>
+          <button type="button" data-menu-tab="stages" id="tabBtn_stages" class="ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700">🏥 階層選択</button>
+          <button type="button" data-menu-tab="codex" id="tabBtn_codex" class="ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700">👻 怪異図鑑</button>
+          <button type="button" data-menu-tab="charts" id="tabBtn_charts" class="ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700">📁 極秘カルテ</button>
+          <button type="button" data-menu-tab="achievements" id="tabBtn_achievements" class="ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700">🏆 実績＆難易度</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-1 rounded-lg bg-slate-900 border border-cyan-500/60 text-cyan-300 text-[11px] font-mono">
+            達成率: <strong id="menuCompletionDisplay" class="text-emerald-300">0%</strong>
+          </span>
+          <span class="px-2.5 py-1 rounded-lg bg-purple-950 border border-purple-400 text-purple-200 text-xs font-mono">
+            保有MP: <strong id="menuMpDisplay" class="text-amber-300">100</strong> MP
+          </span>
+          <button type="button" id="btnCloseMenuModal" class="ui-tap-btn px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold border border-rose-300 shadow">
+            ✕ ゲームへ戻る
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Tab Content -->
+      <div id="menuTabContent" class="p-3 sm:p-4 overflow-y-auto custom-scroll flex-1 space-y-3 text-xs sm:text-sm"></div>
+    </div>
+  </div>
+
+  <!-- ================= STAGE 1 KEYPAD PASSCODE PUZZLE MODAL (z-index: 1900) ================= -->
+  <div id="keypadModal" class="hidden fixed inset-0 z-[1900] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 pointer-events-auto">
+    <div class="w-full max-w-sm bg-slate-950 border-2 border-cyan-500/80 rounded-2xl p-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+        <div>
+          <div class="text-[10px] text-cyan-400 font-mono">SECURITY LOCK - 1F RECEPTION</div>
+          <h3 class="text-base font-bold text-white">🔢 電子カルテ室 テンキーロック</h3>
+        </div>
+        <button type="button" id="btnCloseKeypad" class="ui-tap-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 text-xs border border-slate-600">閉じる</button>
+      </div>
+      <p id="keypadHintText" class="text-xs text-amber-200 mb-2">診察室の「散乱したカルテ」に記された4桁の番号を入力してください（未調査: ？？？？）</p>
+      <div id="keypadDisplay" class="w-full h-11 bg-black border-2 border-cyan-600 rounded-lg mb-3 flex items-center justify-center text-2xl font-mono tracking-[0.5em] text-cyan-300">
+        ----
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button type="button" data-key="1" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">1</button>
+        <button type="button" data-key="2" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">2</button>
+        <button type="button" data-key="3" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">3</button>
+        <button type="button" data-key="4" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">4</button>
+        <button type="button" data-key="5" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">5</button>
+        <button type="button" data-key="6" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">6</button>
+        <button type="button" data-key="7" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">7</button>
+        <button type="button" data-key="8" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">8</button>
+        <button type="button" data-key="9" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">9</button>
+        <button type="button" data-key="C" class="ui-tap-btn py-2.5 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-100 font-bold text-xs border border-rose-500">クリア</button>
+        <button type="button" data-key="0" class="ui-tap-btn py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-600">0</button>
+        <button type="button" data-key="OK" class="ui-tap-btn py-2.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs border border-emerald-400">解除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= STAGE 2 ECG WAVEFORM PUZZLE MODAL (z-index: 1900) ================= -->
+  <div id="ecgModal" class="hidden fixed inset-0 z-[1900] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 pointer-events-auto">
+    <div class="w-full max-w-md bg-slate-950 border-2 border-emerald-500 rounded-2xl p-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+        <div>
+          <div class="text-[10px] text-emerald-400 font-mono">2F REHAB WARD - POWER RESTORATION</div>
+          <h3 class="text-base font-bold text-white">📈 心電図（ECG）配電盤パズル</h3>
+        </div>
+        <button type="button" id="btnCloseEcg" class="ui-tap-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 text-xs border border-slate-600">閉じる</button>
+      </div>
+      <p class="text-xs text-emerald-200 mb-3">断線した端子①→②→③を順番にタップ（またはスワイプ）して正常な心電図波形を復旧させよ！</p>
+      <div class="relative w-full h-32 bg-black border-2 border-emerald-700 rounded-xl mb-3 flex items-center justify-around px-4">
+        <button type="button" id="ecgNode1" class="ui-tap-btn w-16 h-16 rounded-full bg-slate-900 border-2 border-emerald-400 text-emerald-200 font-bold text-sm flex flex-col items-center justify-center shadow-lg">
+          <span>端子①</span>
+          <span class="text-[10px] text-emerald-400">P波</span>
+        </button>
+        <div class="h-1 flex-1 bg-slate-800 mx-1" id="ecgLine1"></div>
+        <button type="button" id="ecgNode2" class="ui-tap-btn w-16 h-16 rounded-full bg-slate-900 border-2 border-emerald-400 text-emerald-200 font-bold text-sm flex flex-col items-center justify-center shadow-lg">
+          <span>端子②</span>
+          <span class="text-[10px] text-emerald-400">QRS波</span>
+        </button>
+        <div class="h-1 flex-1 bg-slate-800 mx-1" id="ecgLine2"></div>
+        <button type="button" id="ecgNode3" class="ui-tap-btn w-16 h-16 rounded-full bg-slate-900 border-2 border-emerald-400 text-emerald-200 font-bold text-sm flex flex-col items-center justify-center shadow-lg">
+          <span>端子③</span>
+          <span class="text-[10px] text-emerald-400">T波</span>
+        </button>
+      </div>
+      <div class="flex justify-between items-center">
+        <span id="ecgStatusText" class="text-xs text-amber-300">端子①から順番にタップしてください</span>
+        <button type="button" id="btnAutoSolveEcg" class="ui-tap-btn px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold border border-emerald-300">
+          ⚡ 一括接続する
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TITLE / STAGE CLEAR / GAME OVER OVERLAY SCREEN (z-index: 1800) ================= -->
+  <div id="overlayScreen" class="fixed inset-0 z-[1800] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-3 pointer-events-auto">
+    <div class="w-full max-w-2xl bg-slate-900/95 border-2 border-rose-700/80 rounded-2xl p-4 sm:p-6 shadow-[0_0_60px_rgba(190,18,60,0.45)] text-center space-y-3 max-h-[94vh] overflow-y-auto custom-scroll">
+      <div id="overlayBadge" class="inline-block px-3 py-0.5 rounded-full bg-rose-950 border border-rose-500 text-rose-300 text-[11px] font-mono tracking-widest">
+        2D SURVIVAL HORROR ACTION - LANDSCAPE EDITION
+      </div>
+      <h1 id="overlayTitle" class="text-2xl sm:text-4xl font-extrabold text-white tracking-wider drop-shadow-[0_2px_10px_rgba(244,63,94,0.8)]">
+        NIGHT SHIFT: PULSE - 夜間病棟 -
+      </h1>
+      <p id="overlayDesc" class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl mx-auto">
+        深夜の4階建て廃病院。懐中電灯の光を『貞子』風の黒髪怨霊に照射して足止めし、フラッシュバーストと生理食塩水トラップを駆使して各階の人型怪異ボスを浄化せよ。
+      </p>
+
+      <!-- Rank / Result Box (Hidden on initial title) -->
+      <div id="overlayResultBox" class="hidden bg-slate-950/90 border border-slate-700 rounded-xl p-3 max-w-md mx-auto text-xs space-y-1"></div>
+
+      <!-- Main Primary CTA Buttons -->
+      <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+        <button type="button" id="btnStartOrNext" class="ui-tap-btn px-6 py-3 rounded-xl bg-gradient-to-r from-rose-700 via-red-600 to-amber-600 hover:from-rose-600 hover:to-amber-500 text-white font-extrabold text-sm sm:text-base border-2 border-amber-300 shadow-lg">
+          🔦 夜勤シフトを開始（1Fから）
+        </button>
+        <button type="button" id="btnRetryCurrent" class="ui-tap-btn hidden px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm border border-slate-500">
+          🔄 この階層を再挑戦
+        </button>
+      </div>
+
+      <!-- Direct Stage Selection Row on Title/Overlay -->
+      <div class="pt-2 border-t border-slate-800">
+        <div class="text-[11px] text-slate-400 mb-1.5">▼ 好きな階層からすぐプレイ（ステージ直通ジャンプ）</div>
+        <div class="grid grid-cols-5 gap-1.5 max-w-lg mx-auto">
+          <button type="button" data-stage-jump="1" class="ui-tap-btn py-2 px-1 rounded-lg bg-slate-800 hover:bg-rose-900 border border-slate-600 text-[11px] font-bold text-slate-100">1F 外来</button>
+          <button type="button" data-stage-jump="2" class="ui-tap-btn py-2 px-1 rounded-lg bg-slate-800 hover:bg-rose-900 border border-slate-600 text-[11px] font-bold text-slate-100">2F 病棟</button>
+          <button type="button" data-stage-jump="3" class="ui-tap-btn py-2 px-1 rounded-lg bg-slate-800 hover:bg-rose-900 border border-slate-600 text-[11px] font-bold text-slate-100">3F 手術室</button>
+          <button type="button" data-stage-jump="4" class="ui-tap-btn py-2 px-1 rounded-lg bg-slate-800 hover:bg-rose-900 border border-slate-600 text-[11px] font-bold text-slate-100">4F 精神科</button>
+          <button type="button" data-stage-jump="5" class="ui-tap-btn py-2 px-1 rounded-lg bg-slate-800 hover:bg-amber-900 border border-amber-500/70 text-[11px] font-bold text-amber-300">B1F 霊安室</button>
+        </div>
+      </div>
+
+      <!-- Direct Upgrade & Codex Openers from Overlay -->
+      <div class="flex flex-wrap justify-center gap-2 pt-1">
+        <button type="button" id="overlayBtnUpgrade" class="ui-tap-btn px-3.5 py-2 rounded-lg bg-indigo-900/90 hover:bg-indigo-800 border border-indigo-400 text-indigo-100 text-xs font-bold">
+          ⚡ 能力強化を開く
+        </button>
+        <button type="button" id="overlayBtnEndless" class="ui-tap-btn px-3.5 py-2 rounded-lg bg-rose-900/90 hover:bg-rose-800 border border-rose-400 text-rose-100 text-xs font-bold">
+          ♾️ 無限夜勤・ボスラッシュ・衣装
+        </button>
+        <button type="button" id="overlayBtnCodex" class="ui-tap-btn px-3.5 py-2 rounded-lg bg-purple-900/90 hover:bg-purple-800 border border-purple-400 text-purple-100 text-xs font-bold">
+          📖 怪異図鑑・極秘カルテ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= GAME ENGINE SCRIPT ================= -->
+  <script>
+/**
+ * ============================================================================
+ * 1. RELIABLE TOUCH & CLICK HELPER (bindTap)
+ * ============================================================================
+ */
+function bindTap(element, callback) {
+  if (!element) return;
+  let lastTriggerTime = 0;
+  const handler = (e) => {
+    e.stopPropagation();
+    const now = performance.now();
+    if (now - lastTriggerTime < 70) return;
+    lastTriggerTime = now;
+    callback(e);
+  };
+  element.addEventListener('pointerdown', handler);
+  element.addEventListener('click', handler);
+}
+
+/**
+ * ============================================================================
+ * 2. WEB AUDIO PROCEDURAL HORROR SOUND ENGINE (BGMなし・心音＆環境音特化)
+ * ============================================================================
+ */
+class HorrorSoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+  }
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+  playHeartbeat(fearRatio) {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      const baseFreq = 48 + fearRatio * 28;
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(24, now + 0.16);
+      const vol = Math.min(0.45, 0.08 + fearRatio * 0.35);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.19);
+    } catch (e) {}
+  }
+  playFlashBurst() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1900, now);
+      osc.frequency.exponentialRampToValueAtTime(160, now + 0.35);
+      gain.gain.setValueAtTime(0.32, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.37);
+    } catch (e) {}
+  }
+  playJumpscareScream() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      for (let i = 0; i < 3; i++) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(320 + i * 270, now);
+        osc.frequency.linearRampToValueAtTime(980 - i * 180, now + 0.25);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.34);
+      }
+    } catch (e) {}
+  }
+  playGimmickSuccess() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.setValueAtTime(780, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.3);
+    } catch (e) {}
+  }
+  playBossSkillAlert() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.linearRampToValueAtTime(85, now + 0.28);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.32);
+    } catch (e) {}
+  }
+}
+
+/**
+ * ============================================================================
+ * 3. LORE DATA: SECRET CHARTS (10), CODEX (8), ACHIEVEMENTS (11), SKINS & CURSES
+ * ============================================================================
+ */
+const SECRET_CHARTS_DATA = [
+  { id: 'c1', stage: 1, title: '1F 外来患者・黒田の苦情記録', body: '「待ち時間が長すぎる。光が眩しい。病院中のブレーカーを落としてやる」— 彼は待合室で黒い影と化した。' },
+  { id: 'c2', stage: 1, title: '1F 当直日誌：懐中電灯の注意点', body: '黒髪の霊は光を当て続けると極端に足が鈍る。右下のライト固定ボタンを押しながら後ずさりするのが生存の鉄則だ。' },
+  { id: 'c3', stage: 2, title: '2F リハビリ科の事故報告書', body: '高速で暴走する車椅子の霊は正面から止められない。黄黒ストライプの「段差トラップ」へ赤い突進レーザーを誘導せよ。' },
+  { id: 'c4', stage: 2, title: '2F 循環器科メモ：心電図配電盤', body: '病棟の非常電源は心電図モニターと連動している。P波・QRS波・T波の順に端子を繋げば電力が戻る。' },
+  { id: 'c5', stage: 3, title: '3F 外科部長・佐伯の執刀記録', body: '彼は死後も三連メスを投げ続ける。部屋の3箇所の「サブ電源」を入れ、中央の手術台（無影灯）の下へ誘い込め。' },
+  { id: 'c6', stage: 3, title: '3F ICU看護師の走り書き', body: '執刀医は麻酔ガスを撒いて死角へ瞬間移動する。ナースコールを鳴らせば雑魚怨霊を別室へ誘導できる。' },
+  { id: 'c7', stage: 4, title: '4F 精神科・隔離病棟のナース日誌', body: '泣き叫ぶ先輩ナースの霊は「3枚の担当患者カルテ」を探している。すべて集めて中央のナースステーションへ返却してあげて。' },
+  { id: 'c8', stage: 4, title: '4F 音響心理学レポート', body: '彼女の赤い絶叫リングに触れると恐怖心が急上昇し、黒い怨念の髪が足を縛りに来る。' },
+  { id: 'c9', stage: 5, title: 'B1F 霊安室・院長極秘解剖録', body: '病院中の怨念が地下で融合し「レギオン」となった。吐き出される黒い瘴気玉はフラッシュバーストで掻き消せる。' },
+  { id: 'c10', stage: 5, title: 'B1F ボイラー技師の遺言', body: '3つの高圧蒸気バルブをすべて開放し、右端の焼却炉ゲート前で点火レバーを引けば、奴を完全に焼却浄化できる。' }
+];
+
+const CODEX_DATA = [
+  { id: 'g_sadako_walk', name: '黒髪の白装束霊（貞子型）', stage: '全階層', weakness: '懐中電灯の照射で減速・フラッシュで消滅', desc: '膝まで届く長い黒髪で顔を覆い、汚れた白い死装束で壁をすり抜けて迫る怨霊。髪の隙間から赤い片目が覗く。' },
+  { id: 'g_sadako_crawl', name: '這いずる黒髪怨霊（クローラー）', stage: '2F〜B1F', weakness: '清めの生理食塩水トラップ・フラッシュ', desc: '関節を逆向きに折り曲げ、長い黒髪を床に引きずりながら四つん這いで高速接近してくる危険な怨霊。' },
+  { id: 'g_sadako_blood', name: '血涙の呪髪霊', stage: '3F〜B1F', weakness: '懐中電灯の集中照射', desc: '逆立つ黒髪の間から鮮血の涙を流し、両腕を突き出して看護師の首を狙う上位怨霊。' },
+  { id: 'b_stage1', name: '【1F BOSS】クレーム患者の巨大黒影', stage: '1F 外来・受付', weakness: 'フロア内3つの「非常ブレーカー」起動', desc: '全身に無数の赤い眼球が浮かぶ巨大な人型黒影。固有技「黒触手3連スラム」と「暗黒吸引フィールド」を放つ。' },
+  { id: 'b_stage2', name: '【2F BOSS】暴走車椅子の怨霊', stage: '2F 一般病棟・リハビリ室', weakness: '段差トラップで転倒させフラッシュバースト', desc: '拘束衣の患者と血塗れの車椅子が融合した怪異。赤レーザー照準後に超高速突進と火花散弾を繰り出す。' },
+  { id: 'b_stage3', name: '【3F BOSS】狂気の執刀医の亡霊', stage: '3F 手術室・ICU', weakness: 'サブ電源3基起動＋中央の無影灯スイッチ照射', desc: '血染めの手術着と額帯鏡、背中の骨アームを持つ外科医。扇状三連メス投擲と麻酔ガス瞬間移動を使う。' },
+  { id: 'b_stage4', name: '【4F BOSS】泣き叫ぶ血涙ナースの霊', stage: '4F 精神科・隔離病棟', weakness: '隔離室の「患者カルテ3枚」を中央へ返却', desc: '引き裂かれた白衣と床まで伸びる黒髪を持つナース霊。広範囲の「絶叫音波リング」と「黒髪バインド弾」を放つ。' },
+  { id: 'b_stage5', name: '【B1F FINAL BOSS】死の集合体・レギオン', stage: 'B1F 霊安室・ボイラー室', weakness: '蒸気バルブ3基開放＋焼却炉点火レバー', desc: '巨大な骸骨と無数の亡者の腕・眼球が融合した最終ボス。血液レーザー砲と暗黒瘴気玉、肉塊の棘で襲いかかる。' }
+];
+
+const ACHIEVEMENTS_DATA = [
+  { id: 'first_flash', title: '閃光の退魔ナース', desc: 'フラッシュバーストで初めて怨霊を撃退した', rewardMp: 30 },
+  { id: 'escape_grab', title: '振り払う執念', desc: '怨霊の拘束をタップ連打で脱出した', rewardMp: 40 },
+  { id: 'stage1_clear', title: '1F 外来フロア突破', desc: 'クレーム患者の巨大黒影を照明全開で浄化した', rewardMp: 50 },
+  { id: 'stage2_clear', title: '2F 病棟フロア突破', desc: '暴走車椅子の怨霊を段差トラップで転倒させ浄化した', rewardMp: 60 },
+  { id: 'stage3_clear', title: '3F 手術室フロア突破', desc: '狂気の執刀医を無影灯の閃光で焼き尽くした', rewardMp: 70 },
+  { id: 'stage4_clear', title: '4F 隔離病棟フロア突破', desc: '泣き叫ぶ血涙ナースにカルテを届けて成仏させた', rewardMp: 80 },
+  { id: 'all_clear', title: '夜明けの生還ナース', desc: 'B1Fの最終ボス「死の集合体・レギオン」を浄化して脱出した', rewardMp: 180 },
+  { id: 'rank_s', title: 'Sランク主任看護師', desc: 'いずれかのステージで総合評価「Sランク」を獲得した', rewardMp: 100 },
+  { id: 'rare_hunter', title: '変異怨霊ハンター', desc: '低確率で出現する「赤い貞子」または「黄金カルテ霊」をフラッシュで撃退した', rewardMp: 120 },
+  { id: 'endless_5', title: '無限夜勤の熟練者', desc: '無限深夜勤務モードで「第5夜（WAVE 5）」以上に到達した', rewardMp: 150 },
+  { id: 'boss_rush_clear', title: '特命・五連退魔師', desc: '「五連ボスラッシュ」モードで全5体のボスを連続撃破した', rewardMp: 220 }
+];
+
+const NURSE_COSTUMES = [
+  { id: 'classic', name: '純白ナース衣（標準）', cost: 0, bonusText: '初期装備（バランス型）', coat: '#f8fafc', collar: '#38bdf8', cross: '#ef4444', hair: '#1e1b24' },
+  { id: 'scrub_blue', name: 'ER救急スクラブ（藍）', cost: 120, bonusText: '移動スピード +8%', coat: '#1e40af', collar: '#60a5fa', cross: '#38bdf8', hair: '#0f172a' },
+  { id: 'surgical_green', name: '外科手術ガウン（翠）', cost: 160, bonusText: '開始時の食塩水トラップ +2個', coat: '#065f46', collar: '#34d399', cross: '#10b981', hair: '#27272a' },
+  { id: 'gothic_black', name: '退魔ゴシック黒衣', cost: 220, bonusText: 'フラッシュバースト範囲 +20%', coat: '#18181b', collar: '#f43f5e', cross: '#e11d48', hair: '#31102f' },
+  { id: 'golden_chief', name: '黄金の総看護師長', cost: 300, bonusText: '獲得MP +30% ＆ バッテリー消費軽減', coat: '#fef08a', collar: '#f59e0b', cross: '#dc2626', hair: '#451a03' }
+];
+
+const FLASHLIGHT_LENSES = [
+  { id: 'warm', name: '標準ハロゲン球', cost: 0, bonusText: '標準の温かい光', colorRgb: '255, 248, 210' },
+  { id: 'uv_violet', name: 'UVバイオレット退魔光', cost: 140, bonusText: '怨霊の減速効果さらに強化', colorRgb: '192, 132, 252' },
+  { id: 'emerald_eye', name: 'エメラルド検眼レーザー', cost: 180, bonusText: 'ライトの照射距離 +15%', colorRgb: '52, 211, 153' },
+  { id: 'crimson_blood', name: 'ブラッドレッド暗視光', cost: 240, bonusText: 'ライト照射時のバッテリー消費 -25%', colorRgb: '251, 113, 133' }
+];
+
+const CURSE_MODIFIERS = [
+  { id: 'flicker', name: '懐中電灯の接触不良', desc: 'ライトが周期的に瞬く代わりに、獲得MP +40%', mpBonus: 0.4 },
+  { id: 'haste_ward', name: '倍速パニック病棟', desc: '怨霊とボスの速度が1.25倍になる代わりに、獲得MP +50%', mpBonus: 0.5 },
+  { id: 'high_anxiety', name: '極限トラウマ勤務', desc: 'ステージ開始時のFEARが50%から始まる代わりに、獲得MP +50%', mpBonus: 0.5 }
+];
+
+/**
+ * ============================================================================
+ * 4. PIXEL ART SPRITE MATRICES (16x16 NURSE & SADAKO GHOSTS)
+ * ============================================================================
+ */
+const SADAKO_SPRITES = {
+  // Standing Sadako: Long black hair covering face, single glowing red eye, tattered white burial gown
+  walker: [
+    "....KKKKKKKK....",
+    "...KKKKKKKKKK...",
+    "..KKKKKKKKKKKK..",
+    "..KKKKKRRKKKKK..",
+    "..KKKKKWRKKKKK..",
+    "..KKKKKKKKKKKK..",
+    "..KKKWWWWWWKKK..",
+    "..KKWWWWWWWWKK..",
+    "..KKW.WWWW.WKK..",
+    "..KK..WWWW..KK..",
+    "...K..W..W..K...",
+    "......WWWW......",
+    ".....WW..WW.....",
+    ".....W....W.....",
+    "....GG....GG....",
+    "................"
+  ],
+  // Crawling Sadako: Low wide posture, hair dragging on floor, blood-stained hands reaching out
+  crawler: [
+    "................",
+    "................",
+    "....KKKKKKKK....",
+    "...KKKKKKKKKK...",
+    "..KKKKRKKKKRKK..",
+    "..KKKKKKKKKKKK..",
+    ".KKKWWWWWWWWKKK.",
+    ".KKWWWWWWWWWWKK.",
+    "RKKW.WWWWWW.WKKR",
+    "R.K...WWWW...K.R",
+    ".....WW..WW.....",
+    "....WW....WW....",
+    "...GG......GG...",
+    "................",
+    "................",
+    "................"
+  ],
+  // Blood-Tears Sadako: Spiky hair + vertical crimson blood streams
+  blood: [
+    "..K.KKKKKKKK.K..",
+    "...KKKKKKKKKK...",
+    "..KKKKKKKKKKKK..",
+    "..KKKRKKKKRKKK..",
+    "..KKKRKKKKRKKK..",
+    "..KKK.KKKK.KKK..",
+    "..KKWWWWWWWWKK..",
+    ".RKKW.WWWW.WKKR.",
+    ".R.K..WWWW..K.R.",
+    "......WWWW......",
+    ".....WWWWWW.....",
+    ".....W.WW.W.....",
+    "....WW....WW....",
+    "....G......G....",
+    "................",
+    "................"
+  ]
+};
+
+/**
+ * ============================================================================
+ * 5. MAIN GAME CONTROLLER CLASS
+ * ============================================================================
+ */
+class NightShiftGame {
+  constructor() {
+    this.canvas = document.getElementById('gameCanvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.darkCanvas = document.createElement('canvas');
+    this.darkCtx = this.darkCanvas.getContext('2d');
+
+    this.sound = new HorrorSoundEngine();
+    this.worldW = 1360;
+    this.worldH = 820;
+
+    // Persistent Save Data
+    this.saveData = {
+      mp: 100,
+      difficulty: 'NORMAL',
+      upgrades: {
+        lightOutput: 1,
+        batteryCap: 1,
+        mentalRes: 1,
+        sneakers: 1
+      },
+      charts: [],
+      codex: [],
+      achievements: [],
+      stageRanks: {},
+      unlockedCostumes: ['classic'],
+      selectedCostume: 'classic',
+      unlockedLenses: ['warm'],
+      selectedLens: 'warm',
+      activeCurses: [],
+      endlessBestWave: 0,
+      bossRushBestSec: null,
+      dailyBounty: {
+        title: 'フラッシュバーストで怨霊を3体浄化せよ',
+        type: 'flash_kills',
+        progress: 0,
+        target: 3,
+        rewardMp: 60
+      }
+    };
+    this.loadProgress();
+
+    this.state = 'TITLE';
+    this.previousStateBeforeModal = 'TITLE';
+    this.currentMenuTab = 'upgrade';
+    this.stage = 1;
+    this.endlessMode = false;
+    this.endlessWave = 1;
+    this.endlessWaveTimer = 0;
+    this.bossRushMode = false;
+    this.bossRushStep = 1;
+    this.pendingClearReason = '';
+    this.minimapExpanded = false;
+    this.compassEnabled = true;
+
+    this.stageStartTime = 0;
+    this.stageMaxFear = 0;
+
+    // Player (Nurse)
+    this.player = {
+      x: 180,
+      y: 410,
+      r: 14,
+      angle: 0,
+      facing: 'down',
+      walkFrame: 0,
+      walkTimer: 0,
+      fear: 0,
+      battery: 100,
+      traps: 3,
+      speedBoostTimer: 0,
+      isAimLocked: false,
+      grabbedBy: null,
+      grabTapsRemaining: 0,
+      grabAutoReleaseTimer: 0,
+      grabImmuneTimer: 0,
+      heldCharts: 0
+    };
+
+    // Input State
+    this.moveInput = { x: 0, y: 0 };
+    this.keys = {};
+    this.gyroEnabled = false;
+    this.gyroOffsetAngle = 0;
+
+    // Entities & Stage Objects
+    this.walls = [];
+    this.ghosts = [];
+    this.boss = null;
+    this.projectiles = [];
+    this.bossHazards = [];
+    this.traps = [];
+    this.items = [];
+    this.gimmicks = [];
+    this.secretCharts = [];
+    this.bloodPrints = [];
+    this.screamWaves = [];
+    this.darkMiasmas = [];
+
+    // Stage Specific States
+    this.roomFullyLit = false;
+    this.stageBossPurified = false;
+    this.stagePasscode = '0419';
+    this.passcodeKnown = false;
+    this.keypadBuffer = '';
+    this.ecgProgress = 0;
+    this.nurseCallLure = { active: false, x: 0, y: 0, timer: 0 };
+
+    // Poltergeist & Visual FX Timers
+    this.flashScreenAlpha = 0;
+    this.heartbeatTimer = 0;
+    this.poltergeistTimer = 320;
+    this.phantomWheelchair = null;
+    this.floorBloodText = null;
+    this.cornerPeeker = null;
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.bindAllEvents();
+    this.loadStage(1, true);
+    this.updateMpHud();
+  }
+
+  /**
+   * ============================================================================
+   * 6. SAVE / LOAD & MP SYSTEM
+   * ============================================================================
+   */
+  loadProgress() {
+    try {
+      const raw = localStorage.getItem('night_shift_pulse_save_v5');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        this.saveData = {
+          ...this.saveData,
+          ...parsed,
+          upgrades: { ...this.saveData.upgrades, ...(parsed.upgrades || {}) }
+        };
+      }
+    } catch (e) {}
+  }
+
+  saveProgress() {
+    try {
+      localStorage.setItem('night_shift_pulse_save_v5', JSON.stringify(this.saveData));
+    } catch (e) {}
+    this.updateMpHud();
+  }
+
+  updateMpHud() {
+    const mpEl = document.getElementById('mpValText');
+    if (mpEl) mpEl.textContent = this.saveData.mp;
+    const modalMp = document.getElementById('menuMpDisplay');
+    if (modalMp) modalMp.textContent = this.saveData.mp;
+    const compEl = document.getElementById('menuCompletionDisplay');
+    if (compEl) compEl.textContent = `${this.calculateCompletionPercentage()}%`;
+  }
+
+  calculateCompletionPercentage() {
+    const upgTotal = (this.saveData.upgrades.lightOutput || 0) +
+                     (this.saveData.upgrades.batteryCap || 0) +
+                     (this.saveData.upgrades.mentalRes || 0) +
+                     (this.saveData.upgrades.sneakers || 0); // max 20
+    const chartsCount = (this.saveData.charts || []).length; // max 10
+    const codexCount = (this.saveData.codex || []).length; // max 8
+    const achCount = (this.saveData.achievements || []).length; // max 11
+    const costumeCount = (this.saveData.unlockedCostumes || ['classic']).length; // max 5
+    const lensCount = (this.saveData.unlockedLenses || ['warm']).length; // max 4
+    const clearedStages = Object.keys(this.saveData.stageRanks || {}).length; // max 5
+
+    const earned = upgTotal + chartsCount + codexCount + achCount + costumeCount + lensCount + clearedStages;
+    const maxTotal = 20 + 10 + 8 + ACHIEVEMENTS_DATA.length + NURSE_COSTUMES.length + FLASHLIGHT_LENSES.length + 5;
+    return Math.min(100, Math.round((earned / maxTotal) * 100));
+  }
+
+  addMp(amount, reason = '') {
+    let multiplier = 1.0;
+    if (this.saveData.selectedCostume === 'golden_chief') multiplier += 0.3;
+    for (const cid of (this.saveData.activeCurses || [])) {
+      const cObj = CURSE_MODIFIERS.find(c => c.id === cid);
+      if (cObj) multiplier += cObj.mpBonus;
+    }
+    const finalAmount = Math.round(amount * multiplier);
+    this.saveData.mp += finalAmount;
+    this.saveProgress();
+    if (reason) {
+      this.showToast(`✨ +${finalAmount} MP獲得（${reason}）`);
+    }
+  }
+
+  progressBounty(type, amount = 1) {
+    const b = this.saveData.dailyBounty;
+    if (!b || b.type !== type) return;
+    b.progress += amount;
+    if (b.progress >= b.target) {
+      const reward = b.rewardMp || 60;
+      this.addMp(reward, `🎖️当直ミッション達成: ${b.title}`);
+      const pool = [
+        { title: 'フラッシュバーストで怨霊を4体浄化せよ', type: 'flash_kills', progress: 0, target: 4, rewardMp: 75 },
+        { title: '清めの生理食塩水トラップを2回設置せよ', type: 'use_traps', progress: 0, target: 2, rewardMp: 60 },
+        { title: 'ブレーカーまたは配電ギミックを3回起動せよ', type: 'gimmick_use', progress: 0, target: 3, rewardMp: 70 }
+      ];
+      this.saveData.dailyBounty = pool[Math.floor(Math.random() * pool.length)];
+      this.saveProgress();
+    }
+  }
+
+  unlockCodex(id) {
+    if (!this.saveData.codex.includes(id)) {
+      this.saveData.codex.push(id);
+      this.saveProgress();
+      const entry = CODEX_DATA.find(c => c.id === id);
+      if (entry) {
+        this.showToast(`📖 怪異図鑑解放：「${entry.name}」を記録しました！`);
+      }
+    }
+  }
+
+  unlockGhostCodexBySubType(subType) {
+    if (subType === 'walker') this.unlockCodex('g_sadako_walk');
+    else if (subType === 'crawler') this.unlockCodex('g_sadako_crawl');
+    else if (subType === 'blood') this.unlockCodex('g_sadako_blood');
+  }
+
+  unlockBossCodexByType(bossType) {
+    if (bossType === 'shadow_patient') this.unlockCodex('b_stage1');
+    else if (bossType === 'wheelchair_ghost') this.unlockCodex('b_stage2');
+    else if (bossType === 'mad_surgeon') this.unlockCodex('b_stage3');
+    else if (bossType === 'weeping_nurse') this.unlockCodex('b_stage4');
+    else if (bossType === 'legion_core') this.unlockCodex('b_stage5');
+  }
+
+  unlockAchievement(id) {
+    if (!this.saveData.achievements.includes(id)) {
+      const ach = ACHIEVEMENTS_DATA.find(a => a.id === id);
+      if (ach) {
+        this.saveData.achievements.push(id);
+        this.addMp(ach.rewardMp, `実績「${ach.title}」達成`);
+      }
+    }
+  }
+
+  showToast(msg, duration = 2600) {
+    const banner = document.getElementById('toastBanner');
+    const text = document.getElementById('toastText');
+    if (!banner || !text) return;
+    text.textContent = msg;
+    banner.classList.remove('opacity-0', '-translate-y-2');
+    banner.classList.add('opacity-100', 'translate-y-0');
+    clearTimeout(this.toastTimeout);
+    this.toastTimeout = setTimeout(() => {
+      banner.classList.remove('opacity-100', 'translate-y-0');
+      banner.classList.add('opacity-0', '-translate-y-2');
+    }, duration);
+  }
+
+  resetAllInputs() {
+    this.moveInput.x = 0;
+    this.moveInput.y = 0;
+    this.keys = {};
+    this.player.isAimLocked = false;
+    const knob = document.getElementById('leftJoystickKnob');
+    if (knob) knob.style.transform = 'translate(0px, 0px)';
+  }
+
+  resize() {
+    const w = Math.max(1, window.innerWidth || 800);
+    const h = Math.max(1, window.innerHeight || 450);
+    this.canvas.width = w;
+    this.canvas.height = h;
+    this.darkCanvas.width = w;
+    this.darkCanvas.height = h;
+  }
+
+  /**
+   * ============================================================================
+   * 7. UI & CONTROLLER EVENT BINDINGS
+   * ============================================================================
+   */
+  bindAllEvents() {
+    // Left Virtual Joystick
+    const stickZone = document.getElementById('leftJoystickZone');
+    const stickKnob = document.getElementById('leftJoystickKnob');
+    let stickTouchId = null;
+
+    const updateStick = (clientX, clientY) => {
+      const rect = stickZone.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      const maxR = 42;
+      if (dist > maxR) {
+        dx = (dx / dist) * maxR;
+        dy = (dy / dist) * maxR;
+      }
+      stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+      this.moveInput.x = dx / maxR;
+      this.moveInput.y = dy / maxR;
+    };
+
+    const resetStick = () => {
+      stickTouchId = null;
+      stickKnob.style.transform = 'translate(0px, 0px)';
+      this.moveInput.x = 0;
+      this.moveInput.y = 0;
+    };
+
+    stickZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.sound.init();
+      const t = e.changedTouches[0];
+      stickTouchId = t.identifier;
+      updateStick(t.clientX, t.clientY);
+    }, { passive: false });
+
+    stickZone.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === stickTouchId) updateStick(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    stickZone.addEventListener('touchend', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === stickTouchId) resetStick();
+      }
+    });
+    stickZone.addEventListener('touchcancel', resetStick);
+
+    // Mouse fallback for Left Stick
+    let mouseStickDown = false;
+    stickZone.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      this.sound.init();
+      mouseStickDown = true;
+      updateStick(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (mouseStickDown) updateStick(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', () => {
+      if (mouseStickDown) {
+        mouseStickDown = false;
+        resetStick();
+      }
+    });
+
+    // Right Flashlight Hold + Aim Swivel Button
+    const btnLight = document.getElementById('btnLightAim');
+    let lightTouchId = null;
+    const updateLightAim = (clientX, clientY) => {
+      const rect = btnLight.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      if (Math.hypot(dx, dy) > 8) {
+        this.player.angle = Math.atan2(dy, dx);
+      }
+    };
+
+    btnLight.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.sound.init();
+      const t = e.changedTouches[0];
+      lightTouchId = t.identifier;
+      this.player.isAimLocked = true;
+      updateLightAim(t.clientX, t.clientY);
+    }, { passive: false });
+
+    btnLight.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === lightTouchId) updateLightAim(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    btnLight.addEventListener('touchend', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === lightTouchId) {
+          lightTouchId = null;
+          this.player.isAimLocked = false;
+        }
+      }
+    });
+
+    btnLight.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      this.player.isAimLocked = true;
+    });
+    window.addEventListener('mouseup', () => {
+      this.player.isAimLocked = false;
+    });
+
+    // Action Buttons: Flash Burst & Interact/Saline Trap
+    bindTap(document.getElementById('btnFlashBurst'), () => {
+      this.sound.init();
+      this.triggerFlashBurst();
+    });
+    bindTap(document.getElementById('btnInteractOrTrap'), () => {
+      this.sound.init();
+      this.useItemOrInteract();
+    });
+
+    // Keyboard Support (WASD / Arrows / Space / E)
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      this.keys[k] = true;
+      if (this.player.grabbedBy && (k === ' ' || k === 'enter' || k === 'z')) {
+        e.preventDefault();
+        this.handleGrabTap();
+        return;
+      }
+      if (this.state === 'PLAY') {
+        if (k === ' ') {
+          e.preventDefault();
+          this.triggerFlashBurst();
+        } else if (k === 'e' || k === 'f' || k === 'enter') {
+          e.preventDefault();
+          this.useItemOrInteract();
+        }
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.key.toLowerCase()] = false;
+    });
+
+    // Grabbed QTE Tap-Only Overlay
+    const grabOverlay = document.getElementById('grabOverlay');
+    const grabBtn = document.getElementById('grabTapBigBtn');
+    const onGrabTap = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleGrabTap();
+    };
+    grabOverlay.addEventListener('pointerdown', onGrabTap);
+    grabBtn.addEventListener('pointerdown', onGrabTap);
+
+    // Top HUD & Overlay Menu Buttons
+    bindTap(document.getElementById('hudBtnUpgrade'), () => {
+      this.sound.init();
+      this.openMenuModal('upgrade');
+    });
+    bindTap(document.getElementById('hudBtnEndless'), () => {
+      this.sound.init();
+      this.openMenuModal('endless');
+    });
+    bindTap(document.getElementById('hudBtnCodex'), () => {
+      this.sound.init();
+      this.openMenuModal('codex');
+    });
+
+    bindTap(document.getElementById('btnQuickNextStage'), () => {
+      this.sound.init();
+      document.getElementById('purifiedBanner').classList.add('hidden');
+      this.completeCurrentStage(this.pendingClearReason || 'ボスを浄化して次の階層へ進んだ！');
+    });
+
+    document.querySelectorAll('[data-stage-jump]').forEach((btn) => {
+      bindTap(btn, () => {
+        this.sound.init();
+        const targetStage = parseInt(btn.getAttribute('data-stage-jump'), 10);
+        this.closeModals();
+        document.getElementById('overlayScreen').classList.add('hidden');
+        this.loadStage(targetStage, false);
+        this.state = 'PLAY';
+      });
+    });
+
+    bindTap(document.getElementById('hudBtnCompass'), () => {
+      this.compassEnabled = !this.compassEnabled;
+      document.getElementById('hudBtnCompass').textContent = this.compassEnabled ? '🧭誘導ON' : '🧭誘導OFF';
+      this.showToast(this.compassEnabled ? '🧭 目標コンパス誘導をONにしました' : '🧭 目標コンパス誘導をOFFにしました');
+    });
+
+    bindTap(document.getElementById('hudBtnSupply'), () => {
+      this.sound.init();
+      this.player.fear = Math.max(0, this.player.fear - 60);
+      this.player.battery = 100;
+      this.player.traps = Math.max(this.player.traps, 3);
+      this.releaseGrab(false);
+      this.showToast('🚑 救急補給：恐怖心-60%・バッテリー100%・食塩水補充！');
+    });
+
+    bindTap(document.getElementById('hudBtnSound'), () => {
+      this.sound.init();
+      this.sound.muted = !this.sound.muted;
+      document.getElementById('hudBtnSound').textContent = this.sound.muted ? '🔇' : '🔊';
+    });
+
+    bindTap(document.getElementById('minimapToggleHitbox'), () => {
+      this.minimapExpanded = !this.minimapExpanded;
+    });
+
+    // Unified Modal Tab Switching & Close
+    document.querySelectorAll('[data-menu-tab]').forEach((tabBtn) => {
+      bindTap(tabBtn, () => {
+        const tabName = tabBtn.getAttribute('data-menu-tab');
+        this.renderMenuTab(tabName);
+      });
+    });
+
+    bindTap(document.getElementById('btnCloseMenuModal'), () => {
+      this.closeModals();
+    });
+
+    // Event Delegation inside Dynamic Menu Content
+    const menuContent = document.getElementById('menuTabContent');
+    menuContent.addEventListener('pointerdown', (e) => {
+      const target = e.target.closest('[data-dyn-action]');
+      if (!target) return;
+      e.stopPropagation();
+      const act = target.getAttribute('data-dyn-action');
+      this.handleDynamicMenuAction(act, target);
+    });
+
+    // Overlay Screen Buttons
+    bindTap(document.getElementById('btnStartOrNext'), () => {
+      this.sound.init();
+      document.getElementById('overlayScreen').classList.add('hidden');
+      if (this.state === 'STAGE_CLEAR' && this.stage < 5) {
+        this.loadStage(this.stage + 1, false);
+      } else {
+        this.loadStage(1, false);
+      }
+      this.state = 'PLAY';
+    });
+
+    bindTap(document.getElementById('btnRetryCurrent'), () => {
+      this.sound.init();
+      document.getElementById('overlayScreen').classList.add('hidden');
+      this.loadStage(this.stage, false);
+      this.state = 'PLAY';
+    });
+
+    bindTap(document.getElementById('overlayBtnUpgrade'), () => {
+      this.sound.init();
+      this.openMenuModal('upgrade');
+    });
+    bindTap(document.getElementById('overlayBtnEndless'), () => {
+      this.sound.init();
+      this.openMenuModal('endless');
+    });
+    bindTap(document.getElementById('overlayBtnCodex'), () => {
+      this.sound.init();
+      this.openMenuModal('codex');
+    });
+
+    // Stage 1 Keypad Modal Buttons
+    bindTap(document.getElementById('btnCloseKeypad'), () => {
+      document.getElementById('keypadModal').classList.add('hidden');
+      this.state = 'PLAY';
+    });
+
+    document.querySelectorAll('[data-key]').forEach((btn) => {
+      bindTap(btn, () => {
+        const key = btn.getAttribute('data-key');
+        this.handleKeypadInput(key);
+      });
+    });
+
+    // Stage 2 ECG Modal Buttons
+    bindTap(document.getElementById('btnCloseEcg'), () => {
+      document.getElementById('ecgModal').classList.add('hidden');
+      this.state = 'PLAY';
+    });
+    bindTap(document.getElementById('ecgNode1'), () => this.stepEcgNode(1));
+    bindTap(document.getElementById('ecgNode2'), () => this.stepEcgNode(2));
+    bindTap(document.getElementById('ecgNode3'), () => this.stepEcgNode(3));
+    bindTap(document.getElementById('btnAutoSolveEcg'), () => {
+      this.stepEcgNode(1);
+      this.stepEcgNode(2);
+      this.stepEcgNode(3);
+    });
+  }
+
+  /**
+   * ============================================================================
+   * 8. STAGE LAYOUTS & 5 DISTINCT HUMAN-MONSTER BOSSES
+   * ============================================================================
+   */
+  loadStage(stageNum, isSilentInit = false) {
+    this.endlessMode = false;
+    this.bossRushMode = false;
+    this.stage = stageNum;
+    this.roomFullyLit = false;
+    this.stageBossPurified = false;
+    this.pendingClearReason = '';
+    const purifiedBanner = document.getElementById('purifiedBanner');
+    if (purifiedBanner) purifiedBanner.classList.add('hidden');
+
+    this.ghosts = [];
+    this.items = [];
+    this.traps = [];
+    this.gimmicks = [];
+    this.secretCharts = [];
+    this.projectiles = [];
+    this.bossHazards = [];
+    this.screamWaves = [];
+    this.darkMiasmas = [];
+    this.bloodPrints = [];
+    this.phantomWheelchair = null;
+    this.floorBloodText = null;
+    this.cornerPeeker = null;
+    this.keypadBuffer = '';
+    this.ecgProgress = 0;
+
+    this.resetAllInputs();
+    this.releaseGrab(false);
+
+    const startFear = (this.saveData.activeCurses || []).includes('high_anxiety') ? 50 : 0;
+    const extraTraps = this.saveData.selectedCostume === 'surgical_green' ? 2 : 0;
+
+    this.player.x = 150;
+    this.player.y = 410;
+    this.player.angle = 0;
+    this.player.fear = startFear;
+    this.player.battery = 100;
+    this.player.traps = 3 + extraTraps;
+    this.player.heldCharts = 0;
+    this.player.grabImmuneTimer = 90;
+
+    this.stageStartTime = performance.now();
+    this.stageMaxFear = startFear;
+
+    // Outer Boundary Walls
+    this.walls = [
+      { x: 0, y: 0, w: this.worldW, h: 24 },
+      { x: 0, y: this.worldH - 24, w: this.worldW, h: 24 },
+      { x: 0, y: 0, w: 24, h: this.worldH },
+      { x: this.worldW - 24, y: 0, w: 24, h: this.worldH }
+    ];
+
+    if (stageNum === 1) this.setupStage1Outpatient();
+    else if (stageNum === 2) this.setupStage2WardRehab();
+    else if (stageNum === 3) this.setupStage3Surgical();
+    else if (stageNum === 4) this.setupStage4Psychiatric();
+    else if (stageNum === 5) this.setupStage5MorgueBoiler();
+
+    // Place 2 Secret Charts per floor
+    const stageCharts = SECRET_CHARTS_DATA.filter(c => c.stage === stageNum);
+    const chartSpots = [
+      { x: 290, y: 120 },
+      { x: 1120, y: 690 }
+    ];
+    stageCharts.forEach((cData, idx) => {
+      if (!this.saveData.charts.includes(cData.id)) {
+        this.secretCharts.push({
+          id: cData.id,
+          title: cData.title,
+          x: chartSpots[idx % chartSpots.length].x,
+          y: chartSpots[idx % chartSpots.length].y,
+          taken: false
+        });
+      }
+    });
+
+    if (!isSilentInit) {
+      this.showToast(`🏥 Stage ${stageNum} を開始しました`);
+    }
+  }
+
+  generateRandomPasscode() {
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += Math.floor(Math.random() * 10).toString();
+    }
+    return code;
+  }
+
+  setStageHud(badgeText, missionText) {
+    const b = document.getElementById('stageBadge');
+    const m = document.getElementById('missionText');
+    if (b) b.textContent = badgeText;
+    if (m) m.textContent = missionText;
+  }
+
+  // --- STAGE 1: 1F OUTPATIENT & RECEPTION ---
+  setupStage1Outpatient() {
+    this.stagePasscode = this.generateRandomPasscode();
+    this.passcodeKnown = false;
+    this.setStageHud('1F 外来・受付', '①左上の診察室でカルテの暗証番号を調査 → ②3つの非常ブレーカーを起動し黒影ボスを消滅させよ');
+
+    this.walls.push(
+      { x: 260, y: 140, w: 280, h: 26 },
+      { x: 260, y: 140, w: 26, h: 190 },
+      { x: 740, y: 140, w: 320, h: 26 },
+      { x: 340, y: 520, w: 580, h: 26 },
+      { x: 640, y: 310, w: 32, h: 150 }
+    );
+
+    this.gimmicks = [
+      { type: 'note', x: 360, y: 220, r: 30, active: false, label: '散乱したカルテ（暗証番号メモ）' },
+      { type: 'keypad_door', x: 655, y: 270, r: 34, active: false, label: '電子カルテ室ロック' },
+      { type: 'breaker', x: 160, y: 140, r: 30, active: false, label: '非常ブレーカー①' },
+      { type: 'breaker', x: 1200, y: 150, r: 30, active: false, label: '非常ブレーカー②' },
+      { type: 'breaker', x: 1180, y: 680, r: 30, active: false, label: '非常ブレーカー③' }
+    ];
+
+    this.items = [
+      { type: 'coffee', x: 480, y: 220, taken: false, label: '温かい缶コーヒー' },
+      { type: 'battery', x: 520, y: 640, taken: false, label: '予備バッテリー' },
+      { type: 'sneaker', x: 880, y: 230, taken: false, label: '軽量スニーカー' }
+    ];
+
+    this.spawnMixedGhosts(3);
+    this.boss = {
+      type: 'shadow_patient',
+      name: 'クレーム患者の巨大黒影',
+      x: 980,
+      y: 410,
+      r: 38,
+      speed: 2.05,
+      hp: 100,
+      maxHp: 100,
+      immuneToLight: true,
+      stunTimer: 0,
+      skillTimer: 150,
+      pullActiveTimer: 0
+    };
+  }
+
+  // --- STAGE 2: 2F WARD & REHAB ROOM ---
+  setupStage2WardRehab() {
+    this.setStageHud('2F 病棟・リハビリ', '①心電図パネル復旧 → ②車椅子ボスの赤レーザー突進を「黄黒の段差トラップ」へ誘導し転倒中にフラッシュ3回！');
+
+    this.walls.push(
+      { x: 300, y: 180, w: 220, h: 26 },
+      { x: 820, y: 180, w: 240, h: 26 },
+      { x: 300, y: 610, w: 220, h: 26 },
+      { x: 820, y: 610, w: 240, h: 26 }
+    );
+
+    this.gimmicks = [
+      { type: 'ecg_panel', x: 220, y: 150, r: 32, active: false, label: '心電図（ECG）配電盤' },
+      { type: 'bump_trap', x: 540, y: 300, r: 48, active: true, label: 'リハビリ段差トラップA' },
+      { type: 'bump_trap', x: 820, y: 500, r: 48, active: true, label: 'リハビリ段差トラップB' },
+      { type: 'bump_trap', x: 1060, y: 310, r: 48, active: true, label: 'リハビリ段差トラップC' }
+    ];
+
+    this.items = [
+      { type: 'coffee', x: 660, y: 140, taken: false, label: '温かい缶コーヒー' },
+      { type: 'battery', x: 420, y: 700, taken: false, label: '大容量バッテリー' },
+      { type: 'battery', x: 1150, y: 420, taken: false, label: '予備バッテリー' },
+      { type: 'saline', x: 660, y: 680, taken: false, label: '清めの生理食塩水' }
+    ];
+
+    this.spawnMixedGhosts(3);
+    this.boss = {
+      type: 'wheelchair_ghost',
+      name: '暴走車椅子の怨霊',
+      x: 1050,
+      y: 410,
+      r: 32,
+      speed: 3.3,
+      hp: 3,
+      maxHp: 3,
+      toppledTimer: 0,
+      stunTimer: 0,
+      chargeTimer: 100,
+      aimTelegraphTimer: 0,
+      dashTimer: 0,
+      dashVx: 0,
+      dashVy: 0,
+      wheelRot: 0
+    };
+  }
+
+  // --- STAGE 3: 3F SURGICAL & ICU ---
+  setupStage3Surgical() {
+    this.setStageHud('3F 手術室・ICU', '①3つの無影灯サブ電源を起動 → ②中央の青い無影灯サークルに執刀医を誘導しメインスイッチ（またはフラッシュ）！');
+
+    this.walls.push(
+      { x: 320, y: 140, w: 26, h: 210 },
+      { x: 320, y: 470, w: 26, h: 210 },
+      { x: 1000, y: 140, w: 26, h: 210 },
+      { x: 1000, y: 470, w: 26, h: 210 }
+    );
+
+    this.gimmicks = [
+      { type: 'sub_power', x: 160, y: 150, r: 30, active: false, label: '無影灯サブ電源①' },
+      { type: 'sub_power', x: 1200, y: 150, r: 30, active: false, label: '無影灯サブ電源②' },
+      { type: 'sub_power', x: 160, y: 670, r: 30, active: false, label: '無影灯サブ電源③' },
+      { type: 'surgical_zone', x: 680, y: 410, r: 120, active: true, label: '中央手術台（無影灯照射エリア）' },
+      { type: 'surgical_switch', x: 680, y: 210, r: 34, active: false, label: '無影灯メイン照射スイッチ' },
+      { type: 'nurse_call', x: 1180, y: 670, r: 30, active: false, label: 'ICUナースコール（怨霊誘導）' }
+    ];
+
+    this.items = [
+      { type: 'coffee', x: 480, y: 150, taken: false, label: 'ミントタブレット' },
+      { type: 'battery', x: 880, y: 680, taken: false, label: '予備バッテリー' },
+      { type: 'sneaker', x: 480, y: 680, taken: false, label: '軽量スニーカー' }
+    ];
+
+    this.spawnMixedGhosts(4);
+    this.boss = {
+      type: 'mad_surgeon',
+      name: '狂気の執刀医の亡霊',
+      x: 940,
+      y: 410,
+      r: 30,
+      speed: 2.25,
+      hp: 1,
+      maxHp: 1,
+      stunTimer: 0,
+      throwTimer: 95,
+      teleportTimer: 240
+    };
+  }
+
+  // --- STAGE 4: 4F PSYCHIATRIC ISOLATION WARD ---
+  setupStage4Psychiatric() {
+    this.setStageHud('4F 精神科・隔離病棟', '泣き叫ぶナースの絶叫リングを避けつつ、隔離室の「患者カルテ」を3枚集めて中央ナースステーションへ返却せよ');
+
+    this.walls.push(
+      { x: 260, y: 220, w: 260, h: 24 },
+      { x: 840, y: 220, w: 260, h: 24 },
+      { x: 260, y: 580, w: 260, h: 24 },
+      { x: 840, y: 580, w: 260, h: 24 }
+    );
+
+    this.gimmicks = [
+      { type: 'chart_pickup', x: 170, y: 130, r: 30, active: false, label: '隔離患者のカルテ①' },
+      { type: 'chart_pickup', x: 1190, y: 130, r: 30, active: false, label: '隔離患者のカルテ②' },
+      { type: 'chart_pickup', x: 1190, y: 690, r: 30, active: false, label: '隔離患者のカルテ③' },
+      { type: 'nurse_station_altar', x: 680, y: 410, r: 46, active: false, label: '中央ナースステーション返却棚' }
+    ];
+
+    this.items = [
+      { type: 'coffee', x: 180, y: 690, taken: false, label: '温かい缶コーヒー' },
+      { type: 'coffee', x: 680, y: 140, taken: false, label: '精神安定タブレット' },
+      { type: 'battery', x: 680, y: 690, taken: false, label: '予備バッテリー' }
+    ];
+
+    this.spawnMixedGhosts(4);
+    this.boss = {
+      type: 'weeping_nurse',
+      name: '泣き叫ぶ血涙ナースの霊',
+      x: 980,
+      y: 410,
+      r: 30,
+      speed: 2.3,
+      hp: 1,
+      maxHp: 1,
+      stunTimer: 0,
+      screamTimer: 150,
+      hairBindTimer: 190
+    };
+  }
+
+  // --- STAGE 5: B1F MORGUE & BOILER ROOM ---
+  setupStage5MorgueBoiler() {
+    this.setStageHud('B1F 霊安室・ボイラー', '黒い瘴気玉をフラッシュで祓いつつ「高圧蒸気バルブ」を3つ全て開け、右端の焼却炉レバーを引いて完全浄化せよ！');
+
+    this.walls.push(
+      { x: 350, y: 200, w: 28, h: 170 },
+      { x: 350, y: 460, w: 28, h: 170 },
+      { x: 760, y: 260, w: 220, h: 28 },
+      { x: 760, y: 530, w: 220, h: 28 }
+    );
+
+    this.gimmicks = [
+      { type: 'boiler_valve', x: 180, y: 150, r: 32, active: false, label: '高圧蒸気バルブ①' },
+      { type: 'boiler_valve', x: 180, y: 670, r: 32, active: false, label: '高圧蒸気バルブ②' },
+      { type: 'boiler_valve', x: 860, y: 140, r: 32, active: false, label: '高圧蒸気バルブ③' },
+      { type: 'incinerator_switch', x: 1175, y: 410, r: 44, active: false, label: '巨大焼却炉・点火レバー' }
+    ];
+
+    this.items = [
+      { type: 'coffee', x: 540, y: 150, taken: false, label: '特製缶コーヒー' },
+      { type: 'battery', x: 540, y: 670, taken: false, label: '高出力バッテリー' },
+      { type: 'battery', x: 960, y: 690, taken: false, label: '予備バッテリー' },
+      { type: 'sneaker', x: 540, y: 410, taken: false, label: '軽量スニーカー' }
+    ];
+
+    this.spawnMixedGhosts(4);
+    this.boss = {
+      type: 'legion_core',
+      name: '死の集合体・レギオン',
+      x: 1010,
+      y: 410,
+      r: 48,
+      speed: 1.85,
+      hp: 100,
+      maxHp: 100,
+      stunTimer: 0,
+      miasmaTimer: 120,
+      laserChargeTimer: 210,
+      laserFireTimer: 0,
+      laserAngle: 0,
+      tentaclePhase: 0
+    };
+  }
+
+  spawnMixedGhosts(count) {
+    const subTypes = ['walker', 'crawler', 'blood'];
+    for (let i = 0; i < count; i++) {
+      const st = subTypes[i % subTypes.length];
+
+      const roll = Math.random();
+      let variant = 'normal';
+      if (roll < 0.14) variant = 'red_mutant';
+      else if (roll < 0.24) variant = 'golden_chart';
+
+      const baseSpd = st === 'crawler' ? 2.38 : (st === 'blood' ? 2.15 : 1.9);
+      this.ghosts.push({
+        subType: st,
+        variant,
+        x: 560 + Math.random() * 680,
+        y: 100 + Math.random() * 620,
+        r: 15,
+        baseSpeed: variant === 'red_mutant' ? baseSpd * 1.28 : baseSpd,
+        slowed: false,
+        stunTimer: 0,
+        phaseOffset: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  /**
+   * ============================================================================
+   * 9. ENDLESS SURVIVAL MODE & 5-BOSS RUSH MODE
+   * ============================================================================
+   */
+  startEndlessSurvivalMode() {
+    this.loadStage(1, true);
+    this.endlessMode = true;
+    this.bossRushMode = false;
+    this.endlessWave = 1;
+    this.endlessWaveTimer = 900;
+    this.closeModals();
+    document.getElementById('overlayScreen').classList.add('hidden');
+    this.state = 'PLAY';
+    this.setStageHud('♾️ 第1夜', `♾️無限夜勤 WAVE 1 (最高記録:第${this.saveData.endlessBestWave}夜) - 15秒ごとに次の夜へ進行＆補給物資投下！`);
+    this.showToast('♾️ 無限深夜勤務モード開始！WAVEごとに物資が補充され、歴代ボスも順番に襲来します！', 3800);
+  }
+
+  startBossRushMode() {
+    this.loadStage(1, true);
+    this.bossRushMode = true;
+    this.endlessMode = false;
+    this.bossRushStep = 1;
+    this.stageStartTime = performance.now();
+    this.stageMaxFear = 0;
+    this.closeModals();
+    document.getElementById('overlayScreen').classList.add('hidden');
+    this.state = 'PLAY';
+    this.spawnBossRushStage(1);
+    this.showToast('👑 五連ボスラッシュ開始！全5階層のボスを連続で浄化せよ！', 3800);
+  }
+
+  spawnBossRushStage(step) {
+    this.bossRushStep = step;
+    this.ghosts = [];
+    this.projectiles = [];
+    this.screamWaves = [];
+    this.darkMiasmas = [];
+    this.bossHazards = [];
+    this.gimmicks = [];
+    this.player.heldCharts = 0;
+    this.player.battery = Math.min(100, this.player.battery + 35);
+    this.player.fear = Math.max(0, this.player.fear - 25);
+
+    this.items.push(
+      { type: 'battery', x: 350 + Math.random() * 650, y: 200 + Math.random() * 420, taken: false, label: '補給バッテリー' },
+      { type: 'coffee', x: 350 + Math.random() * 650, y: 200 + Math.random() * 420, taken: false, label: '補給コーヒー' }
+    );
+
+    if (step === 1) {
+      this.setStageHud('👑 RUSH 1/5', '【第1戦：巨大黒影】3つの非常ブレーカーを起動して焼き払え！');
+      this.gimmicks = [
+        { type: 'breaker', x: 180, y: 160, r: 32, active: false, label: 'ブレーカー①' },
+        { type: 'breaker', x: 1180, y: 160, r: 32, active: false, label: 'ブレーカー②' },
+        { type: 'breaker', x: 1180, y: 660, r: 32, active: false, label: 'ブレーカー③' }
+      ];
+      this.boss = {
+        type: 'shadow_patient', name: 'クレーム患者の巨大黒影',
+        x: 980, y: 410, r: 38, speed: 2.15, hp: 100, maxHp: 100,
+        immuneToLight: true, stunTimer: 0, skillTimer: 140, pullActiveTimer: 0
+      };
+    } else if (step === 2) {
+      this.setStageHud('👑 RUSH 2/5', '【第2戦：暴走車椅子】段差トラップで転倒させフラッシュを2回当てろ！');
+      this.gimmicks = [
+        { type: 'bump_trap', x: 520, y: 280, r: 50, active: true, label: '段差トラップA' },
+        { type: 'bump_trap', x: 860, y: 520, r: 50, active: true, label: '段差トラップB' },
+        { type: 'bump_trap', x: 1060, y: 310, r: 50, active: true, label: '段差トラップC' }
+      ];
+      this.boss = {
+        type: 'wheelchair_ghost', name: '暴走車椅子の怨霊',
+        x: 1050, y: 410, r: 32, speed: 3.45, hp: 2, maxHp: 2,
+        toppledTimer: 0, stunTimer: 0, chargeTimer: 95, aimTelegraphTimer: 0, dashTimer: 0, dashVx: 0, dashVy: 0, wheelRot: 0
+      };
+    } else if (step === 3) {
+      this.setStageHud('👑 RUSH 3/5', '【第3戦：狂気の執刀医】サブ電源3基を入れ中央無影灯で照射（または中央でフラッシュ）せよ！');
+      this.gimmicks = [
+        { type: 'sub_power', x: 180, y: 160, r: 30, active: false, label: 'サブ電源①' },
+        { type: 'sub_power', x: 1180, y: 160, r: 30, active: false, label: 'サブ電源②' },
+        { type: 'sub_power', x: 180, y: 660, r: 30, active: false, label: 'サブ電源③' },
+        { type: 'surgical_zone', x: 680, y: 410, r: 125, active: true, label: '無影灯照射エリア' },
+        { type: 'surgical_switch', x: 680, y: 205, r: 34, active: false, label: '無影灯スイッチ' }
+      ];
+      this.boss = {
+        type: 'mad_surgeon', name: '狂気の執刀医の亡霊',
+        x: 960, y: 410, r: 30, speed: 2.3, hp: 1, maxHp: 1,
+        stunTimer: 0, throwTimer: 95, teleportTimer: 240
+      };
+    } else if (step === 4) {
+      this.setStageHud('👑 RUSH 4/5', '【第4戦：血涙ナース】3枚の患者カルテを集め中央ナースステーションへ返却せよ！');
+      this.gimmicks = [
+        { type: 'chart_pickup', x: 180, y: 160, r: 30, active: false, label: '患者カルテ①' },
+        { type: 'chart_pickup', x: 1180, y: 160, r: 30, active: false, label: '患者カルテ②' },
+        { type: 'chart_pickup', x: 1180, y: 660, r: 30, active: false, label: '患者カルテ③' },
+        { type: 'nurse_station_altar', x: 680, y: 410, r: 48, active: false, label: '中央ナースステーション' }
+      ];
+      this.boss = {
+        type: 'weeping_nurse', name: '泣き叫ぶ血涙ナースの霊',
+        x: 1020, y: 410, r: 30, speed: 2.35, hp: 1, maxHp: 1,
+        stunTimer: 0, screamTimer: 145, hairBindTimer: 185
+      };
+    } else if (step === 5) {
+      this.setStageHud('👑 RUSH 5/5', '【最終戦：レギオン】3つの蒸気バルブを開け、右端の焼却炉レバーを引け！');
+      this.gimmicks = [
+        { type: 'boiler_valve', x: 180, y: 160, r: 32, active: false, label: '蒸気バルブ①' },
+        { type: 'boiler_valve', x: 180, y: 660, r: 32, active: false, label: '蒸気バルブ②' },
+        { type: 'boiler_valve', x: 860, y: 150, r: 32, active: false, label: '蒸気バルブ③' },
+        { type: 'incinerator_switch', x: 1175, y: 410, r: 44, active: false, label: '焼却炉・点火レバー' }
+      ];
+      this.boss = {
+        type: 'legion_core', name: '死の集合体・レギオン',
+        x: 1010, y: 410, r: 48, speed: 1.9, hp: 100, maxHp: 100,
+        stunTimer: 0, miasmaTimer: 120, laserChargeTimer: 200, laserFireTimer: 0, laserAngle: 0, tentaclePhase: 0
+      };
+    }
+  }
+
+  advanceBossRushWave() {
+    this.flashScreenAlpha = 0.85;
+    this.sound.playFlashBurst();
+    if (this.bossRushStep < 5) {
+      this.addMp(35, `ボスラッシュ 第${this.bossRushStep}戦突破`);
+      this.showToast(`🔥 第 ${this.bossRushStep} 戦突破！次のボスが降臨します！(+35 MP)`);
+      this.spawnBossRushStage(this.bossRushStep + 1);
+    } else {
+      const clearSec = Math.round((performance.now() - this.stageStartTime) / 1000);
+      if (!this.saveData.bossRushBestSec || clearSec < this.saveData.bossRushBestSec) {
+        this.saveData.bossRushBestSec = clearSec;
+      }
+      this.unlockAchievement('boss_rush_clear');
+      this.addMp(160, `五連ボスラッシュ完全制覇 (${clearSec}秒)`);
+      this.bossRushMode = false;
+      this.completeCurrentStage(`五連ボスラッシュ完全制覇！（クリアタイム: ${clearSec}秒）`);
+    }
+  }
+
+  /**
+   * ============================================================================
+   * 10. PLAYER ACTIONS: FLASH BURST, INTERACT/TRAP, GRAB QTE
+   * ============================================================================
+   */
+  triggerFlashBurst() {
+    if (this.state !== 'PLAY') return;
+    const cost = Math.max(12, 22 - (this.saveData.upgrades.batteryCap - 1) * 2);
+    if (this.player.battery < cost) {
+      this.showToast('⚠️ バッテリー残量が不足しています！');
+      return;
+    }
+
+    this.player.battery = Math.max(0, this.player.battery - cost);
+    this.flashScreenAlpha = 0.95;
+    this.sound.playFlashBurst();
+    if (navigator.vibrate) navigator.vibrate(90);
+
+    const costumeBoost = this.saveData.selectedCostume === 'gothic_black' ? 1.2 : 1.0;
+    const radius = (235 + (this.saveData.upgrades.lightOutput - 1) * 28) * costumeBoost;
+
+    // Clear nearby ghosts & check rare variants
+    let hitAny = false;
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      const g = this.ghosts[i];
+      if (Math.hypot(g.x - this.player.x, g.y - this.player.y) <= radius) {
+        hitAny = true;
+        this.unlockGhostCodexBySubType(g.subType);
+        this.progressBounty('flash_kills', 1);
+        if (g.variant === 'golden_chart') {
+          this.addMp(80, '★黄金カルテ霊を浄化ボーナス');
+          this.unlockAchievement('rare_hunter');
+        } else if (g.variant === 'red_mutant') {
+          this.addMp(45, '★変異・赤貞子を浄化ボーナス');
+          this.unlockAchievement('rare_hunter');
+        }
+        this.ghosts.splice(i, 1);
+        setTimeout(() => {
+          if (this.state === 'PLAY' && !this.stageBossPurified) this.spawnMixedGhosts(1);
+        }, 4800);
+      }
+    }
+    if (hitAny) this.unlockAchievement('first_flash');
+
+    // Dispel Stage 5 Dark Miasmas & refund battery
+    let miasmaCleared = 0;
+    for (let i = this.darkMiasmas.length - 1; i >= 0; i--) {
+      const m = this.darkMiasmas[i];
+      if (Math.hypot(m.x - this.player.x, m.y - this.player.y) <= radius + 40) {
+        this.darkMiasmas.splice(i, 1);
+        miasmaCleared++;
+      }
+    }
+    if (miasmaCleared > 0) {
+      this.player.battery = Math.min(100, this.player.battery + miasmaCleared * 12);
+      this.showToast(`✨ 暗黒瘴気を ${miasmaCleared} 個浄化！（バッテリー+${miasmaCleared * 12}%還元）`);
+    }
+
+    // Boss Interactions with Flash Burst
+    if (this.boss && !this.stageBossPurified) {
+      const distBoss = Math.hypot(this.boss.x - this.player.x, this.boss.y - this.player.y);
+      if (distBoss <= radius + this.boss.r) {
+        if (this.boss.type === 'wheelchair_ghost' && this.boss.toppledTimer > 0) {
+          this.boss.hp--;
+          this.boss.toppledTimer = 0;
+          this.boss.stunTimer = 95;
+          this.sound.playGimmickSuccess();
+          if (this.boss.hp <= 0) {
+            this.unlockAchievement('stage2_clear');
+            this.spawnStageClearStairs('暴走車椅子の怨霊を浄化した！');
+          } else {
+            this.showToast(`💥 車椅子ボスにフラッシュ直撃！ 残り ${this.boss.hp} 回！`);
+          }
+        } else if (this.boss.type === 'mad_surgeon') {
+          const allSub = this.gimmicks.filter(g => g.type === 'sub_power').every(g => g.active);
+          const zone = this.gimmicks.find(g => g.type === 'surgical_zone');
+          if (allSub && zone && Math.hypot(this.boss.x - zone.x, this.boss.y - zone.y) <= zone.r + 35) {
+            this.unlockAchievement('stage3_clear');
+            this.spawnStageClearStairs('無影灯の共鳴フラッシュで狂気の執刀医を焼き尽くした！');
+          } else {
+            this.boss.stunTimer = 115;
+            this.showToast('⚡ 執刀医が怯んだ！（サブ電源3基起動後に中央の青いサークル内で照射せよ）');
+          }
+        } else {
+          this.boss.stunTimer = 115;
+          this.showToast(`⚡ ${this.boss.name} をスタンさせた！`);
+        }
+      }
+    }
+  }
+
+  useItemOrInteract() {
+    if (this.state !== 'PLAY') return;
+
+    // 1. Check nearby interactive gimmick first
+    let nearestGim = null;
+    let nearestDist = Infinity;
+    for (const g of this.gimmicks) {
+      if (g.type === 'bump_trap' || g.type === 'surgical_zone') continue;
+      const d = Math.hypot(g.x - this.player.x, g.y - this.player.y);
+      if (d <= g.r + 44 && d < nearestDist) {
+        nearestDist = d;
+        nearestGim = g;
+      }
+    }
+
+    if (nearestGim) {
+      this.handleGimmickInteraction(nearestGim);
+      return;
+    }
+
+    // 2. Otherwise place Saline Trap
+    if (this.player.traps > 0) {
+      this.player.traps--;
+      this.traps.push({
+        x: this.player.x,
+        y: this.player.y,
+        r: 36,
+        life: 650
+      });
+      this.progressBounty('use_traps', 1);
+      this.sound.playGimmickSuccess();
+      this.showToast('💧 足元に「清めの生理食塩水」トラップを設置しました');
+    } else {
+      this.showToast('⚠️ 生理食塩水トラップの残数がありません');
+    }
+  }
+
+  handleGimmickInteraction(g) {
+    this.sound.playGimmickSuccess();
+    this.progressBounty('gimmick_use', 1);
+
+    if (g.type === 'exit_stairs') {
+      this.completeCurrentStage(g.clearReason || 'ステージ突破！');
+      return;
+    }
+
+    if (g.type === 'note') {
+      g.active = true;
+      this.passcodeKnown = true;
+      this.addMp(20, '診察室の暗証番号カルテを解読');
+      this.showToast(`📋 カルテ解読：暗証番号は【 ${this.stagePasscode} 】と判明！`, 4000);
+      return;
+    }
+
+    if (g.type === 'keypad_door') {
+      if (g.active) {
+        this.showToast('🔓 電子カルテ室のロックは既に解除されています');
+        return;
+      }
+      this.resetAllInputs();
+      this.state = 'MODAL';
+      this.keypadBuffer = '';
+      document.getElementById('keypadDisplay').textContent = '----';
+      const hintEl = document.getElementById('keypadHintText');
+      if (hintEl) {
+        hintEl.textContent = this.passcodeKnown
+          ? `診察室のカルテで判明した暗証番号【 ${this.stagePasscode} 】を入力してください`
+          : '診察室の「散乱したカルテ」に記された4桁の番号を入力してください（現在の調査状況：【 ？？？？ 】先に左上の診察室を調べましょう）';
+      }
+      document.getElementById('keypadModal').classList.remove('hidden');
+      return;
+    }
+
+    if (g.type === 'breaker') {
+      if (!g.active) {
+        g.active = true;
+        this.addMp(15, `${g.label}を起動`);
+        const allBreakers = this.gimmicks.filter(x => x.type === 'breaker');
+        const activeCount = allBreakers.filter(x => x.active).length;
+        if (activeCount >= allBreakers.length) {
+          this.unlockAchievement('stage1_clear');
+          this.spawnStageClearStairs('全ブレーカー起動！1Fの巨大黒影を光で消滅させた！');
+        } else {
+          this.showToast(`🔌 ${g.label} 起動！（残り ${allBreakers.length - activeCount} 基）`);
+        }
+      }
+      return;
+    }
+
+    if (g.type === 'ecg_panel') {
+      if (g.active) {
+        this.showToast('📈 心電図配電盤は既に復旧済みです');
+        return;
+      }
+      this.resetAllInputs();
+      this.state = 'MODAL';
+      this.ecgProgress = 0;
+      document.getElementById('ecgStatusText').textContent = '端子①→②→③の順にタップしてください';
+      document.getElementById('ecgModal').classList.remove('hidden');
+      return;
+    }
+
+    if (g.type === 'sub_power') {
+      if (!g.active) {
+        g.active = true;
+        this.addMp(15, `${g.label}を起動`);
+        const subs = this.gimmicks.filter(x => x.type === 'sub_power');
+        const done = subs.filter(x => x.active).length;
+        this.showToast(`⚡ 無影灯サブ電源 (${done}/${subs.length}) を起動！`);
+      }
+      return;
+    }
+
+    if (g.type === 'surgical_switch') {
+      const subs = this.gimmicks.filter(x => x.type === 'sub_power');
+      if (!subs.every(x => x.active)) {
+        this.showToast('⚠️ 先にフロア内3箇所の「無影灯サブ電源」を起動してください！');
+        return;
+      }
+      const zone = this.gimmicks.find(x => x.type === 'surgical_zone');
+      if (this.boss && zone && Math.hypot(this.boss.x - zone.x, this.boss.y - zone.y) <= zone.r + 55) {
+        g.active = true;
+        this.unlockAchievement('stage3_clear');
+        this.spawnStageClearStairs('無影灯フル出力照射！狂気の執刀医を焼き尽くした！');
+      } else {
+        this.showToast('⚠️ 執刀医ボスを中央の青い「無影灯サークル」の中へ誘導してから押してください！');
+      }
+      return;
+    }
+
+    if (g.type === 'nurse_call') {
+      this.nurseCallLure = { active: true, x: g.x, y: g.y, timer: 360 };
+      this.showToast('🔔 ナースコール作動！6秒間、雑魚怨霊をこの場所へ引きつけます！');
+      return;
+    }
+
+    if (g.type === 'chart_pickup') {
+      if (!g.active) {
+        g.active = true;
+        this.player.heldCharts = (this.player.heldCharts || 0) + 1;
+        this.addMp(20, `${g.label}を回収`);
+        this.showToast(`📋 患者カルテ回収 (${this.player.heldCharts}/3枚)！3枚揃えたら中央ナースステーションへ！`);
+      }
+      return;
+    }
+
+    if (g.type === 'nurse_station_altar') {
+      if ((this.player.heldCharts || 0) < 3) {
+        this.showToast(`⚠️ まだカルテが足りません（現在 ${this.player.heldCharts || 0}/3枚）`);
+        return;
+      }
+      g.active = true;
+      this.unlockAchievement('stage4_clear');
+      this.spawnStageClearStairs('3枚のカルテを返却！泣き叫ぶ血涙ナースが成仏した！');
+      return;
+    }
+
+    if (g.type === 'boiler_valve') {
+      if (!g.active) {
+        g.active = true;
+        this.addMp(20, `${g.label}を開放`);
+        const valves = this.gimmicks.filter(x => x.type === 'boiler_valve');
+        const done = valves.filter(x => x.active).length;
+        this.showToast(`🔥 高圧蒸気バルブ開放 (${done}/${valves.length})！`);
+      }
+      return;
+    }
+
+    if (g.type === 'incinerator_switch') {
+      const valves = this.gimmicks.filter(x => x.type === 'boiler_valve');
+      if (!valves.every(x => x.active)) {
+        this.showToast('⚠️ 先に3つの「高圧蒸気バルブ」をすべて開放してください！');
+        return;
+      }
+      g.active = true;
+      this.unlockAchievement('all_clear');
+      this.spawnStageClearStairs('焼却炉フル点火！死の集合体・レギオンを完全浄化した！');
+    }
+  }
+
+  handleKeypadInput(key) {
+    if (key === 'C') {
+      this.keypadBuffer = '';
+    } else if (key === 'OK') {
+      if (this.keypadBuffer === this.stagePasscode) {
+        const door = this.gimmicks.find(g => g.type === 'keypad_door');
+        if (door) door.active = true;
+        // 連動特典：未起動の非常ブレーカーを1つ自動で起動する
+        const unlitBreaker = this.gimmicks.find(g => g.type === 'breaker' && !g.active);
+        if (unlitBreaker) unlitBreaker.active = true;
+
+        document.getElementById('keypadModal').classList.add('hidden');
+        this.state = 'PLAY';
+        this.addMp(35, '電子カルテ室のロック解除');
+        this.player.battery = 100;
+        const allBreakers = this.gimmicks.filter(x => x.type === 'breaker');
+        const activeCount = allBreakers.filter(x => x.active).length;
+        if (activeCount >= allBreakers.length) {
+          this.unlockAchievement('stage1_clear');
+          this.spawnStageClearStairs('テンキー解除と全ブレーカー連動により1Fの巨大黒影を消滅させた！');
+        } else {
+          this.showToast(`🔓 ロック解除！バッテリー100%回復＆非常ブレーカー1基が自動起動（残り${allBreakers.length - activeCount}基）！`, 3800);
+        }
+        return;
+      } else {
+        this.keypadBuffer = '';
+        this.showToast('❌ 暗証番号が違います！左上の診察室のカルテを調べましょう');
+      }
+    } else if (this.keypadBuffer.length < 4) {
+      this.keypadBuffer += key;
+    }
+    document.getElementById('keypadDisplay').textContent = this.keypadBuffer.padEnd(4, '-');
+  }
+
+  stepEcgNode(nodeIndex) {
+    if (nodeIndex === this.ecgProgress + 1) {
+      this.ecgProgress = nodeIndex;
+      this.sound.playGimmickSuccess();
+      if (nodeIndex >= 2) document.getElementById('ecgLine1').className = 'h-1.5 flex-1 bg-emerald-400 mx-1';
+      if (nodeIndex >= 3) {
+        document.getElementById('ecgLine2').className = 'h-1.5 flex-1 bg-emerald-400 mx-1';
+        const panel = this.gimmicks.find(g => g.type === 'ecg_panel');
+        if (panel) panel.active = true;
+        document.getElementById('ecgModal').classList.add('hidden');
+        this.state = 'PLAY';
+        this.addMp(40, '心電図（ECG）配電盤の復旧完了');
+        this.player.battery = 100;
+        this.showToast('📈 心電図波形が正常化！リハビリ段差トラップの電磁ロックが作動＆バッテリー100%回復！');
+      }
+    }
+  }
+
+  spawnStageClearStairs(clearReasonText) {
+    if (this.boss) {
+      this.unlockBossCodexByType(this.boss.type);
+    }
+    if (this.bossRushMode) {
+      this.advanceBossRushWave();
+      return;
+    }
+    if (this.endlessMode) {
+      this.addMp(55, `無限夜勤 ボス撃破ボーナス`);
+      this.player.battery = Math.min(100, this.player.battery + 40);
+      this.player.fear = Math.max(0, this.player.fear - 30);
+      this.showToast(`🔥 ${clearReasonText} (+55 MP & バッテリー+40%回復！次のWAVEで新ボスが降臨)`);
+      this.boss = null;
+      return;
+    }
+
+    this.stageBossPurified = true;
+    this.roomFullyLit = true;
+    this.pendingClearReason = clearReasonText;
+    this.ghosts = [];
+    this.projectiles = [];
+    this.screamWaves = [];
+    this.darkMiasmas = [];
+    this.bossHazards = [];
+    this.releaseGrab(false);
+
+    const exitX = 1230;
+    const exitY = 410;
+    const isFinalFloor = this.stage === 5;
+    this.gimmicks.push({
+      type: 'exit_stairs',
+      x: exitX,
+      y: exitY,
+      r: 44,
+      active: false,
+      label: isFinalFloor ? '🚪 地上への脱出エレベーター' : '🚪 次の階層への非常階段',
+      clearReason: clearReasonText
+    });
+
+    const purifiedBanner = document.getElementById('purifiedBanner');
+    const quickBtn = document.getElementById('btnQuickNextStage');
+    if (quickBtn) {
+      quickBtn.textContent = isFinalFloor ? '🌅 すぐ地上へ脱出する' : '⏩ すぐ次の階層へ進む';
+    }
+    if (purifiedBanner) purifiedBanner.classList.remove('hidden');
+
+    const remainingCharts = this.secretCharts.filter(c => !c.taken).length;
+    const chartNotice = remainingCharts > 0
+      ? `（フロア内に未回収の📁極秘カルテが ${remainingCharts} 枚あります！回収してから🚪脱出できます）`
+      : (isFinalFloor ? '（右端の🚪脱出エレベーターへ入るか、上部のボタンで脱出！）' : '（右端の🚪非常階段へ入るか、上部の「⏩すぐ次の階層へ進む」をタップ！）');
+
+    this.setStageHud(isFinalFloor ? 'B1F 浄化完了' : `${this.stage}F 浄化完了`, `✨ ボス浄化成功！${chartNotice}`);
+    this.showToast(`✨ ${clearReasonText} ${chartNotice}`, 4200);
+  }
+
+  /**
+   * ============================================================================
+   * 11. GRABBED BY GHOST QTE (TAP ONLY - 5 TAPS OR 4 SEC FAILSAFE)
+   * ============================================================================
+   */
+  triggerGrab(ghost) {
+    if (this.player.grabbedBy || this.player.grabImmuneTimer > 0 || this.stageBossPurified) return;
+    this.resetAllInputs();
+    this.player.grabbedBy = ghost;
+    this.player.grabTapsRemaining = 5;
+    this.player.grabAutoReleaseTimer = 240; // 4 seconds automatic failsafe
+    this.updateGrabUi();
+    document.getElementById('grabOverlay').classList.remove('hidden');
+    this.triggerJumpscareCutIn('sadako');
+  }
+
+  handleGrabTap() {
+    if (!this.player.grabbedBy) return;
+    this.player.grabTapsRemaining = Math.max(0, this.player.grabTapsRemaining - 1);
+    this.updateGrabUi();
+    if (this.player.grabTapsRemaining <= 0) {
+      this.releaseGrab(true);
+    }
+  }
+
+  updateGrabUi() {
+    const rem = this.player.grabTapsRemaining;
+    const pct = Math.min(100, Math.round(((5 - rem) / 5) * 100));
+    const bar = document.getElementById('grabProgressBar');
+    const txt = document.getElementById('grabTapRemain');
+    if (bar) bar.style.width = `${pct}%`;
+    if (txt) txt.textContent = rem;
+  }
+
+  releaseGrab(knockbackGhost = true) {
+    const g = this.player.grabbedBy;
+    this.player.grabbedBy = null;
+    this.player.grabTapsRemaining = 0;
+    this.player.grabImmuneTimer = 210; // 3.5 seconds immunity
+    document.getElementById('grabOverlay').classList.add('hidden');
+
+    if (knockbackGhost && g) {
+      this.unlockGhostCodexBySubType(g.subType);
+      g.stunTimer = 150;
+      const ang = Math.atan2(g.y - this.player.y, g.x - this.player.x);
+      g.x += Math.cos(ang) * 130;
+      g.y += Math.sin(ang) * 130;
+      this.unlockAchievement('escape_grab');
+      this.sound.playFlashBurst();
+      this.showToast('💥 タップ連打で怨霊を振り払った！（3.5秒間拘束無敵）');
+    }
+  }
+
+  /**
+   * ============================================================================
+   * 12. HIGH-RES JUMPSCARE CUT-IN & POLTERGEIST EVENTS
+   * ============================================================================
+   */
+  triggerJumpscareCutIn(style = 'sadako') {
+    const layer = document.getElementById('jumpscareLayer');
+    const jCanvas = document.getElementById('jumpscareCanvas');
+    if (!layer || !jCanvas) return;
+
+    this.renderHighResJumpscare(jCanvas.getContext('2d'), jCanvas.width, jCanvas.height, style);
+    layer.classList.remove('hidden');
+    this.sound.playJumpscareScream();
+    if (navigator.vibrate) navigator.vibrate([120, 40, 160]);
+
+    clearTimeout(this.jumpscareTimeout);
+    this.jumpscareTimeout = setTimeout(() => {
+      layer.classList.add('hidden');
+    }, 280);
+  }
+
+  renderHighResJumpscare(ctx, w, h, style) {
+    ctx.clearRect(0, 0, w, h);
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.65);
+    grad.addColorStop(0, '#450a0a');
+    grad.addColorStop(1, '#000000');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Pale horror face silhouette
+    ctx.fillStyle = '#d1d5db';
+    ctx.beginPath();
+    ctx.ellipse(w / 2, h / 2, 95, 128, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Long Sadako black hair strands covering half the face
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(w / 2 - 110, h / 2 - 135, 220, 70);
+    for (let i = -95; i <= 95; i += 18) {
+      ctx.fillRect(w / 2 + i - 8, h / 2 - 90, 14, 220);
+    }
+
+    // Hollow sockets & glaring red eyes
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(w / 2 - 36, h / 2 - 10, 24, 0, Math.PI * 2);
+    ctx.arc(w / 2 + 36, h / 2 - 10, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(w / 2 - 36, h / 2 - 10, 9, 0, Math.PI * 2);
+    ctx.arc(w / 2 + 36, h / 2 - 10, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Screaming abyssal mouth
+    ctx.fillStyle = '#1f0303';
+    ctx.beginPath();
+    ctx.ellipse(w / 2, h / 2 + 58, 36, 48, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /**
+   * ============================================================================
+   * 13. UNIFIED 6-TAB MODAL RENDERER
+   * ============================================================================
+   */
+  openMenuModal(tab = 'upgrade') {
+    this.resetAllInputs();
+    if (this.state !== 'MODAL') {
+      this.previousStateBeforeModal = this.state;
+    }
+    this.state = 'MODAL';
+    document.getElementById('menuModal').classList.remove('hidden');
+    this.renderMenuTab(tab);
+  }
+
+  closeModals() {
+    document.getElementById('menuModal').classList.add('hidden');
+    document.getElementById('keypadModal').classList.add('hidden');
+    document.getElementById('ecgModal').classList.add('hidden');
+    if (this.state === 'MODAL') {
+      this.state = this.previousStateBeforeModal === 'PLAY' ? 'PLAY' : 'TITLE';
+    }
+  }
+
+  renderMenuTab(tab) {
+    this.currentMenuTab = tab;
+    this.updateMpHud();
+
+    const tabs = ['upgrade', 'endless', 'stages', 'codex', 'charts', 'achievements'];
+    tabs.forEach(t => {
+      const btn = document.getElementById(`tabBtn_${t}`);
+      if (!btn) return;
+      if (t === tab) {
+        btn.className = 'ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white border border-indigo-300 shadow';
+      } else {
+        btn.className = 'ui-tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700';
+      }
+    });
+
+    const container = document.getElementById('menuTabContent');
+    if (!container) return;
+
+    if (tab === 'upgrade') {
+      const u = this.saveData.upgrades;
+      const bounty = this.saveData.dailyBounty;
+      const items = [
+        { key: 'lightOutput', name: '🔦 懐中電灯・高出力レンズ', lv: u.lightOutput, desc: '扇状ライトの距離・幅とフラッシュバーストの有効範囲を強化' },
+        { key: 'batteryCap', name: '🔋 リチウム大容量バッテリー', lv: u.batteryCap, desc: '通常照射とフラッシュバーストの電力消費を大きく軽減' },
+        { key: 'mentalRes', name: '💊 精神安定トレーニング', lv: u.mentalRes, desc: '怨霊やボスの怪異現象で受ける恐怖心（FEAR）上昇を軽減' },
+        { key: 'sneakers', name: '👟 夜勤用・超軽量ナースシューズ', lv: u.sneakers, desc: '看護師の基礎移動スピードと後退速度をアップ' }
+      ];
+      container.innerHTML = `
+        <div class="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/70 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black mr-1">🎖️ 当直ミッション</span>
+            <span class="font-bold text-amber-200 text-xs">${bounty.title}</span>
+            <span class="text-xs font-mono text-emerald-300 ml-2">進行度: ${bounty.progress} / ${bounty.target} (報酬 +${bounty.rewardMp} MP)</span>
+          </div>
+          <button type="button" data-dyn-action="add-test-mp" class="ui-tap-btn px-2.5 py-1 rounded bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold border border-purple-300">
+            ＋テスト用 100 MP 獲得
+          </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          ${items.map(it => {
+            const cost = it.lv * 45;
+            const isMax = it.lv >= 5;
+            return `
+              <div class="p-3 rounded-xl bg-slate-900 border border-slate-700 flex flex-col justify-between gap-2">
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-white text-xs sm:text-sm">${it.name}</span>
+                    <span class="text-xs font-mono text-amber-300">Lv.${it.lv} / 5</span>
+                  </div>
+                  <p class="text-[11px] text-slate-300 mt-1">${it.desc}</p>
+                </div>
+                <button type="button" data-dyn-action="buy-upg" data-upg-key="${it.key}" ${isMax ? 'disabled' : ''} class="ui-tap-btn w-full py-2 rounded-lg font-bold text-xs ${isMax ? 'bg-slate-800 text-slate-500 border border-slate-700' : 'bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-300'}">
+                  ${isMax ? '★ MAX強化済み' : `＋ 強化する（消費: ${cost} MP）`}
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else if (tab === 'endless') {
+      const bestRush = this.saveData.bossRushBestSec ? `${this.saveData.bossRushBestSec}秒` : '未クリア';
+      container.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div class="p-3 rounded-xl bg-gradient-to-r from-rose-950/90 via-slate-900 to-indigo-950/90 border-2 border-amber-400/80 flex flex-col justify-between gap-2.5">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-amber-500 text-black font-extrabold text-[10px]">ENDLESS MODE</span>
+                <span class="font-bold text-white text-xs sm:text-sm">♾️ 無限深夜勤務（100夜耐久）</span>
+              </div>
+              <p class="text-[11px] text-slate-200">15秒ごとにWAVEが進み、回復物資の再補充とともに5大ボスやレア怪異が次々と襲来する耐久サバイバル！</p>
+              <div class="text-xs text-amber-300 font-mono font-bold">🏆 最高到達記録: 第 ${this.saveData.endlessBestWave || 0} 夜</div>
+            </div>
+            <button type="button" data-dyn-action="start-endless" class="ui-tap-btn w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold text-xs border border-yellow-300 shadow-lg">
+              ▶ 無限深夜勤務を開始！
+            </button>
+          </div>
+
+          <div class="p-3 rounded-xl bg-gradient-to-r from-purple-950/90 via-slate-900 to-rose-950/90 border-2 border-purple-400/80 flex flex-col justify-between gap-2.5">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-purple-400 text-black font-extrabold text-[10px]">BOSS RUSH</span>
+                <span class="font-bold text-white text-xs sm:text-sm">👑 特命・五連ボスラッシュ</span>
+              </div>
+              <p class="text-[11px] text-slate-200">1FからB1Fまでの全5大ボスが連続で降臨！ギミックとフラッシュを駆使して最速連続撃破タイムを競う特命モード！</p>
+              <div class="text-xs text-cyan-300 font-mono font-bold">⏱️ 最速クリア記録: ${bestRush} (報酬 +160 MP)</div>
+            </div>
+            <button type="button" data-dyn-action="start-boss-rush" class="ui-tap-btn w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs border border-purple-300 shadow-lg">
+              ⚔️ 五連ボスラッシュを開始！
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-700 rounded-xl p-2.5 space-y-2">
+          <div class="font-bold text-amber-200 text-xs">👗 ナース着せ替え衣装（ドット絵スキン＆常時パッシブ効果）</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            ${NURSE_COSTUMES.map(c => {
+              const unlocked = (this.saveData.unlockedCostumes || ['classic']).includes(c.id);
+              const selected = this.saveData.selectedCostume === c.id;
+              return `
+                <div class="p-2 rounded-lg bg-slate-950 border ${selected ? 'border-emerald-400' : 'border-slate-700'} flex flex-col justify-between gap-1.5">
+                  <div>
+                    <div class="font-bold text-white text-xs">${c.name}</div>
+                    <div class="text-[10px] text-emerald-300">${c.bonusText}</div>
+                  </div>
+                  <button type="button" data-dyn-action="select-costume" data-costume-id="${c.id}" class="ui-tap-btn py-1.5 rounded text-[11px] font-bold ${selected ? 'bg-emerald-700 text-white' : (unlocked ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-indigo-700 text-white')}">
+                    ${selected ? '✓ 着用中' : (unlocked ? '着用する' : `解放 (${c.cost} MP)`)}
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div class="bg-slate-900/90 border border-slate-700 rounded-xl p-2.5 space-y-2">
+            <div class="font-bold text-cyan-200 text-xs">🔦 懐中電灯カスタムレンズ（ビーム色変更＆ボーナス）</div>
+            ${FLASHLIGHT_LENSES.map(l => {
+              const unlocked = (this.saveData.unlockedLenses || ['warm']).includes(l.id);
+              const selected = this.saveData.selectedLens === l.id;
+              return `
+                <div class="flex items-center justify-between p-1.5 rounded bg-slate-950 border ${selected ? 'border-cyan-400' : 'border-slate-800'}">
+                  <div>
+                    <div class="text-xs font-bold text-white">${l.name}</div>
+                    <div class="text-[10px] text-slate-300">${l.bonusText}</div>
+                  </div>
+                  <button type="button" data-dyn-action="select-lens" data-lens-id="${l.id}" class="ui-tap-btn px-2.5 py-1 rounded text-[11px] font-bold ${selected ? 'bg-cyan-700 text-white' : (unlocked ? 'bg-slate-800 text-slate-200' : 'bg-indigo-700 text-white')}">
+                    ${selected ? '装着中' : (unlocked ? '装着' : `${l.cost} MP`)}
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="bg-slate-900/90 border border-slate-700 rounded-xl p-2.5 space-y-2">
+            <div class="font-bold text-rose-300 text-xs">📜 呪いのカルテ（高難度・獲得MP倍増縛り）</div>
+            ${CURSE_MODIFIERS.map(cm => {
+              const active = (this.saveData.activeCurses || []).includes(cm.id);
+              return `
+                <div class="flex items-center justify-between p-1.5 rounded bg-slate-950 border ${active ? 'border-rose-500' : 'border-slate-800'}">
+                  <div class="pr-2">
+                    <div class="text-xs font-bold text-rose-200">${cm.name}</div>
+                    <div class="text-[10px] text-slate-300">${cm.desc}</div>
+                  </div>
+                  <button type="button" data-dyn-action="toggle-curse" data-curse-id="${cm.id}" class="ui-tap-btn px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap ${active ? 'bg-rose-700 text-white border border-rose-300' : 'bg-slate-800 text-slate-300'}">
+                    ${active ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    } else if (tab === 'stages') {
+      const stagesInfo = [
+        { num: 1, title: 'Stage 1（1階：外来・受付）', boss: 'クレーム患者の巨大黒影', tip: '診察室で4桁のランダム暗証番号を調査し、3つの非常ブレーカーを起動して光で消滅させる' },
+        { num: 2, title: 'Stage 2（2階：一般病棟・リハビリ室）', boss: '暴走車椅子の怨霊', tip: '心電図パズルを解き、赤レーザー突進を黄黒の段差トラップへ誘導して転倒中にフラッシュ3回' },
+        { num: 3, title: 'Stage 3（3階：手術室・ICU）', boss: '狂気の執刀医の亡霊', tip: '3箇所の無影灯サブ電源を入れ、中央の手術台サークルに誘導して無影灯照射スイッチ' },
+        { num: 4, title: 'Stage 4（4階：精神科・隔離病棟）', boss: '泣き叫ぶ血涙ナースの霊', tip: '絶叫リングを避けながら隔離室3部屋のカルテを集め、中央ナースステーションへ返却' },
+        { num: 5, title: 'Stage 5（地下B1F：霊安室・ボイラー室）', boss: '死の集合体・レギオン', tip: '瘴気玉をフラッシュで祓いつつ高圧蒸気バルブを3つ開放し、右端の焼却炉レバーで点火' }
+      ];
+      container.innerHTML = `
+        <div class="space-y-2">
+          ${stagesInfo.map(s => {
+            const bestRank = this.saveData.stageRanks[s.num] || '-';
+            return `
+              <div class="p-3 rounded-xl bg-slate-900 border border-slate-700 flex flex-wrap items-center justify-between gap-2">
+                <div class="space-y-0.5 max-w-xl">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-white text-xs sm:text-sm">${s.title}</span>
+                    <span class="px-2 py-0.5 rounded bg-rose-950 border border-rose-500 text-rose-200 text-[10px]">BOSS: ${s.boss}</span>
+                    <span class="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-[10px]">最高評価: ${bestRank}</span>
+                  </div>
+                  <p class="text-[11px] text-slate-300">${s.tip}</p>
+                </div>
+                <button type="button" data-dyn-action="jump-stage" data-stage-num="${s.num}" class="ui-tap-btn px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-bold text-xs border border-rose-300 shadow">
+                  ▶ この階層へ移動
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else if (tab === 'codex') {
+      const unlockedCount = this.saveData.codex.length;
+      container.innerHTML = `
+        <div class="flex flex-wrap justify-between items-center gap-2 mb-2 p-2 rounded-lg bg-slate-900 border border-slate-800">
+          <span class="text-xs text-slate-300">⚡ フラッシュバーストや食塩水・ステージギミックで<strong>撃退・浄化した怪異</strong>が図鑑に記録されます</span>
+          <span class="px-2.5 py-1 rounded bg-purple-950 border border-purple-500/70 text-purple-200 text-xs font-mono font-bold">
+            📖 撃退記録: ${unlockedCount} / ${CODEX_DATA.length}
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          ${CODEX_DATA.map(c => {
+            const unlocked = this.saveData.codex.includes(c.id);
+            return `
+              <div class="p-3 rounded-xl bg-slate-900 border ${unlocked ? 'border-purple-500/70' : 'border-slate-800 opacity-60'} space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-white text-xs sm:text-sm">${unlocked ? c.name : '？？？？（未撃退）'}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-purple-300">${c.stage}</span>
+                </div>
+                <div class="text-[11px] text-amber-300">弱点・攻略: ${unlocked ? c.weakness : '？？？'}</div>
+                <p class="text-[11px] text-slate-300">${unlocked ? c.desc : 'この怪異を撃退・浄化すると詳細な生態データが解放されます。'}</p>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else if (tab === 'charts') {
+      container.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          ${SECRET_CHARTS_DATA.map(ch => {
+            const found = this.saveData.charts.includes(ch.id);
+            return `
+              <div class="p-3 rounded-xl bg-slate-900 border ${found ? 'border-emerald-500/70' : 'border-slate-800 opacity-60'} space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-emerald-300 text-xs">${found ? ch.title : `未回収カルテ (Stage ${ch.stage})`}</span>
+                  <span class="text-[10px] font-mono text-slate-400">${found ? '✓ 回収済' : '未発見'}</span>
+                </div>
+                <p class="text-[11px] text-slate-200">${found ? ch.body : '各フロアの紫色の「📁極秘カルテ」に近づくと回収できます（+35 MP）。'}</p>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else if (tab === 'achievements') {
+      container.innerHTML = `
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700 flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div>
+            <div class="font-bold text-white text-xs sm:text-sm">⚙️ ゲーム難易度設定（いつでも切替可能）</div>
+            <p class="text-[11px] text-slate-300">NIGHTMAREでは敵の移動速度と恐怖上昇が上がる代わりに、クリア報酬MPが1.5倍になります。</p>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" data-dyn-action="set-diff" data-diff="NORMAL" class="ui-tap-btn px-3 py-1.5 rounded-lg text-xs font-bold ${this.saveData.difficulty === 'NORMAL' ? 'bg-emerald-600 text-white border border-emerald-300' : 'bg-slate-800 text-slate-300'}">NORMAL</button>
+            <button type="button" data-dyn-action="set-diff" data-diff="NIGHTMARE" class="ui-tap-btn px-3 py-1.5 rounded-lg text-xs font-bold ${this.saveData.difficulty === 'NIGHTMARE' ? 'bg-rose-700 text-white border border-rose-300' : 'bg-slate-800 text-slate-300'}">NIGHTMARE (MP1.5倍)</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ${ACHIEVEMENTS_DATA.map(a => {
+            const done = this.saveData.achievements.includes(a.id);
+            return `
+              <div class="p-2.5 rounded-xl bg-slate-900 border ${done ? 'border-amber-400/80' : 'border-slate-800 opacity-65'} flex items-center justify-between">
+                <div>
+                  <div class="font-bold text-xs ${done ? 'text-amber-300' : 'text-slate-300'}">🏆 ${a.title}</div>
+                  <div class="text-[11px] text-slate-300">${a.desc}</div>
+                </div>
+                <span class="text-xs font-mono ${done ? 'text-emerald-300' : 'text-slate-500'} whitespace-nowrap ml-2">+${a.rewardMp} MP</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+  }
+
+  handleDynamicMenuAction(act, el) {
+    if (act === 'add-test-mp') {
+      this.addMp(100, 'テスト用ボーナス');
+      this.renderMenuTab(this.currentMenuTab);
+    } else if (act === 'buy-upg') {
+      const key = el.getAttribute('data-upg-key');
+      const curLv = this.saveData.upgrades[key] || 1;
+      if (curLv >= 5) return;
+      const cost = curLv * 45;
+      if (this.saveData.mp < cost) {
+        this.showToast('⚠️ MPが足りません！（ステージ攻略やカルテ回収、または「＋テスト用100MP」で獲得可能）');
+        return;
+      }
+      this.saveData.mp -= cost;
+      this.saveData.upgrades[key] = curLv + 1;
+      this.sound.playGimmickSuccess();
+      this.saveProgress();
+      this.renderMenuTab('upgrade');
+      this.showToast('⚡ 能力を強化しました！');
+    } else if (act === 'start-endless') {
+      this.startEndlessSurvivalMode();
+    } else if (act === 'start-boss-rush') {
+      this.startBossRushMode();
+    } else if (act === 'select-costume') {
+      const cid = el.getAttribute('data-costume-id');
+      const cObj = NURSE_COSTUMES.find(c => c.id === cid);
+      if (!cObj) return;
+      if (!this.saveData.unlockedCostumes.includes(cid)) {
+        if (this.saveData.mp < cObj.cost) {
+          this.showToast('⚠️ MPが足りません！');
+          return;
+        }
+        this.saveData.mp -= cObj.cost;
+        this.saveData.unlockedCostumes.push(cid);
+      }
+      this.saveData.selectedCostume = cid;
+      this.sound.playGimmickSuccess();
+      this.saveProgress();
+      this.renderMenuTab('endless');
+      this.showToast(`👗 「${cObj.name}」を着用しました！`);
+    } else if (act === 'select-lens') {
+      const lid = el.getAttribute('data-lens-id');
+      const lObj = FLASHLIGHT_LENSES.find(l => l.id === lid);
+      if (!lObj) return;
+      if (!this.saveData.unlockedLenses.includes(lid)) {
+        if (this.saveData.mp < lObj.cost) {
+          this.showToast('⚠️ MPが足りません！');
+          return;
+        }
+        this.saveData.mp -= lObj.cost;
+        this.saveData.unlockedLenses.push(lid);
+      }
+      this.saveData.selectedLens = lid;
+      this.sound.playGimmickSuccess();
+      this.saveProgress();
+      this.renderMenuTab('endless');
+      this.showToast(`🔦 「${lObj.name}」を装着しました！`);
+    } else if (act === 'toggle-curse') {
+      const curseId = el.getAttribute('data-curse-id');
+      const arr = this.saveData.activeCurses || [];
+      const idx = arr.indexOf(curseId);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push(curseId);
+      this.saveData.activeCurses = arr;
+      this.saveProgress();
+      this.renderMenuTab('endless');
+    } else if (act === 'jump-stage') {
+      const stNum = parseInt(el.getAttribute('data-stage-num'), 10);
+      this.closeModals();
+      document.getElementById('overlayScreen').classList.add('hidden');
+      this.loadStage(stNum, false);
+      this.state = 'PLAY';
+    } else if (act === 'set-diff') {
+      const diff = el.getAttribute('data-diff');
+      this.saveData.difficulty = diff;
+      this.saveProgress();
+      this.renderMenuTab('achievements');
+      this.showToast(`⚙️ 難易度を ${diff} に変更しました`);
+    }
+  }
+
+  /**
+   * ============================================================================
+   * 14. STAGE CLEAR & GAME OVER OVERLAYS
+   * ============================================================================
+   */
+  completeCurrentStage(reasonText) {
+    const purifiedBanner = document.getElementById('purifiedBanner');
+    if (purifiedBanner) purifiedBanner.classList.add('hidden');
+    this.resetAllInputs();
+
+    const elapsedSec = Math.round((performance.now() - this.stageStartTime) / 1000);
+    let rank = 'B';
+    if (elapsedSec <= 85 && this.stageMaxFear < 65) rank = 'S';
+    else if (elapsedSec <= 130) rank = 'A';
+
+    if (rank === 'S') this.unlockAchievement('rank_s');
+    const rankOrder = { S: 3, A: 2, B: 1 };
+    const prevBest = this.saveData.stageRanks[this.stage];
+    if (!prevBest || (rankOrder[rank] || 0) > (rankOrder[prevBest] || 0)) {
+      this.saveData.stageRanks[this.stage] = rank;
+    }
+
+    const baseReward = 65 + this.stage * 20;
+    const diffMult = this.saveData.difficulty === 'NIGHTMARE' ? 1.5 : 1.0;
+    const earnedMp = Math.round(baseReward * diffMult);
+    this.addMp(earnedMp, `Stage ${this.stage} クリア報酬`);
+
+    this.state = 'STAGE_CLEAR';
+    const overlay = document.getElementById('overlayScreen');
+    const title = document.getElementById('overlayTitle');
+    const desc = document.getElementById('overlayDesc');
+    const resBox = document.getElementById('overlayResultBox');
+    const btnMain = document.getElementById('btnStartOrNext');
+    const btnRetry = document.getElementById('btnRetryCurrent');
+
+    overlay.classList.remove('hidden');
+    btnRetry.classList.remove('hidden');
+    resBox.classList.remove('hidden');
+
+    if (this.stage >= 5) {
+      title.textContent = '🌅 ALL STAGES CLEAR - 夜間病棟から生還！';
+      desc.textContent = `${reasonText} すべての怨霊と死の集合体レギオンを浄化し、夜明けの病院から脱出しました！`;
+      btnMain.textContent = '🔄 1Fから周回プレイを開始';
+    } else {
+      title.textContent = `✨ STAGE ${this.stage} CLEAR!`;
+      desc.textContent = reasonText;
+      btnMain.textContent = `⏩ 次の階層（Stage ${this.stage + 1}）へ進む`;
+    }
+
+    resBox.innerHTML = `
+      <div class="flex justify-between"><span>クリアタイム:</span><strong class="text-cyan-300 font-mono">${elapsedSec}秒</strong></div>
+      <div class="flex justify-between"><span>最大恐怖心 (MAX FEAR):</span><strong class="text-rose-300 font-mono">${Math.round(this.stageMaxFear)}%</strong></div>
+      <div class="flex justify-between"><span>総合クリア評価:</span><strong class="text-amber-300 text-base font-extrabold">RANK ${rank}</strong></div>
+      <div class="flex justify-between"><span>獲得医療ポイント:</span><strong class="text-emerald-300 font-mono">+${earnedMp} MP</strong></div>
+    `;
+  }
+
+  triggerGameOver() {
+    this.releaseGrab(false);
+    this.resetAllInputs();
+    this.state = 'GAMEOVER';
+
+    const overlay = document.getElementById('overlayScreen');
+    const title = document.getElementById('overlayTitle');
+    const desc = document.getElementById('overlayDesc');
+    const resBox = document.getElementById('overlayResultBox');
+    const btnMain = document.getElementById('btnStartOrNext');
+    const btnRetry = document.getElementById('btnRetryCurrent');
+
+    overlay.classList.remove('hidden');
+    btnRetry.classList.remove('hidden');
+    resBox.classList.add('hidden');
+
+    title.textContent = '💀 GAME OVER - 恐怖で意識を失った...';
+    desc.textContent = '懐中電灯の光で怨霊を減速させ、右下の「ライト固定」長押しで後退しながら距離を取りましょう。能力強化も有効です。';
+    btnMain.textContent = '🔄 1Fからやり直す';
+  }
+
+  /**
+   * ============================================================================
+   * 15. MAIN UPDATE LOOP (PHYSICS, AI, BOSS SKILLS, FEAR & HAPTICS)
+   * ============================================================================
+   */
+  update() {
+    if (this.state !== 'PLAY') return;
+
+    // Endless Survival Mode Wave Progression
+    if (this.endlessMode) {
+      this.endlessWaveTimer--;
+      if (this.endlessWaveTimer <= 0) {
+        this.endlessWave++;
+        this.endlessWaveTimer = 900;
+        if (this.endlessWave > (this.saveData.endlessBestWave || 0)) {
+          this.saveData.endlessBestWave = this.endlessWave;
+          this.saveProgress();
+        }
+        if (this.endlessWave >= 5) {
+          this.unlockAchievement('endless_5');
+        }
+        this.addMp(20 + this.endlessWave * 5, `無限夜勤 第${this.endlessWave}夜 到達`);
+        this.player.battery = Math.min(100, this.player.battery + 30);
+        this.player.fear = Math.max(0, this.player.fear - 20);
+
+        const supplyTypes = ['coffee', 'battery', 'saline', 'sneaker'];
+        const pickType = supplyTypes[this.endlessWave % supplyTypes.length];
+        this.items.push({
+          type: pickType,
+          x: 240 + Math.random() * 880,
+          y: 160 + Math.random() * 500,
+          taken: false,
+          label: pickType === 'coffee' ? '夜勤缶コーヒー' : (pickType === 'battery' ? '緊急バッテリー' : (pickType === 'saline' ? '生理食塩水' : '軽量スニーカー'))
+        });
+
+        const bossPool = [
+          { type: 'wheelchair_ghost', name: '暴走車椅子の怨霊', r: 32, speed: 3.2, hp: 2, maxHp: 2, chargeTimer: 90, aimTelegraphTimer: 0, dashTimer: 0, dashVx: 0, dashVy: 0, wheelRot: 0 },
+          { type: 'mad_surgeon', name: '狂気の執刀医の亡霊', r: 30, speed: 2.2, hp: 1, maxHp: 1, throwTimer: 90, teleportTimer: 220 },
+          { type: 'weeping_nurse', name: '泣き叫ぶ血涙ナースの霊', r: 30, speed: 2.3, hp: 1, maxHp: 1, screamTimer: 140, hairBindTimer: 170 },
+          { type: 'legion_core', name: '死の集合体・レギオン', r: 46, speed: 1.85, hp: 100, maxHp: 100, miasmaTimer: 120, laserChargeTimer: 200, laserFireTimer: 0, laserAngle: 0, tentaclePhase: 0 }
+        ];
+        if (!this.boss || this.endlessWave % 2 === 0) {
+          const template = bossPool[(this.endlessWave - 1) % bossPool.length];
+          this.boss = { ...template, x: 980, y: 410, stunTimer: 0, toppledTimer: 0 };
+        }
+
+        if (this.ghosts.length < 7) {
+          this.spawnMixedGhosts(2);
+        }
+        this.setStageHud(`♾️ 第${this.endlessWave}夜`, `♾️無限夜勤 WAVE ${this.endlessWave} (最高:第${this.saveData.endlessBestWave}夜) - 物資投下＆ボス交代！`);
+        this.showToast(`🌙 第 ${this.endlessWave} 夜へ突入！フロアに補給物資が出現＆バッテリー+30%回復！`);
+      }
+    }
+
+    if (this.player.grabImmuneTimer > 0) this.player.grabImmuneTimer--;
+    if (this.flashScreenAlpha > 0) this.flashScreenAlpha = Math.max(0, this.flashScreenAlpha - 0.045);
+
+    // If Grabbed by Ghost: Handle failsafe timer & slight fear rise
+    if (this.player.grabbedBy) {
+      this.player.grabAutoReleaseTimer--;
+      this.player.fear = Math.min(100, this.player.fear + 0.14);
+      if (this.player.grabAutoReleaseTimer <= 0) {
+        this.releaseGrab(true);
+      }
+      this.updateHudGauges();
+      if (this.player.fear >= 100) this.triggerGameOver();
+      return;
+    }
+
+    // 1. Player Movement & Corner-Sliding Wall Collision
+    let vx = this.moveInput.x;
+    let vy = this.moveInput.y;
+    if (this.keys['w'] || this.keys['arrowup']) vy = -1;
+    if (this.keys['s'] || this.keys['arrowdown']) vy = 1;
+    if (this.keys['a'] || this.keys['arrowleft']) vx = -1;
+    if (this.keys['d'] || this.keys['arrowright']) vx = 1;
+
+    const mag = Math.hypot(vx, vy);
+    if (mag > 1) {
+      vx /= mag;
+      vy /= mag;
+    }
+
+    const sneakerBonus = 1 + (this.saveData.upgrades.sneakers - 1) * 0.08;
+    const costumeSpeed = this.saveData.selectedCostume === 'scrub_blue' ? 1.08 : 1.0;
+    const boostMult = this.player.speedBoostTimer > 0 ? 1.38 : 1.0;
+    if (this.player.speedBoostTimer > 0) this.player.speedBoostTimer--;
+
+    const spd = 3.25 * sneakerBonus * costumeSpeed * boostMult;
+    this.movePlayerWithSlide(vx * spd, vy * spd);
+
+    // Update Walk Animation & Facing Direction
+    if (mag > 0.08) {
+      this.player.walkTimer++;
+      if (this.player.walkTimer >= 7) {
+        this.player.walkTimer = 0;
+        this.player.walkFrame = (this.player.walkFrame + 1) % 4;
+      }
+      if (!this.player.isAimLocked) {
+        this.player.angle = Math.atan2(vy, vx);
+      }
+    } else {
+      this.player.walkFrame = 0;
+    }
+
+    // Update 4-directional sprite facing from flashlight angle
+    const deg = ((this.player.angle * 180) / Math.PI + 360) % 360;
+    if (deg >= 45 && deg < 135) this.player.facing = 'down';
+    else if (deg >= 135 && deg < 225) this.player.facing = 'left';
+    else if (deg >= 225 && deg < 315) this.player.facing = 'up';
+    else this.player.facing = 'right';
+
+    // 2. Battery Drain & Item Pickups
+    if (!this.roomFullyLit && this.player.battery > 0) {
+      const capFactor = Math.max(0.45, 1 - (this.saveData.upgrades.batteryCap - 1) * 0.12);
+      const lensFactor = this.saveData.selectedLens === 'crimson_blood' ? 0.75 : 1.0;
+      const drain = (this.player.isAimLocked ? 0.022 : 0.012) * capFactor * lensFactor;
+      this.player.battery = Math.max(0, this.player.battery - drain);
+    }
+
+    for (const it of this.items) {
+      if (!it.taken && Math.hypot(it.x - this.player.x, it.y - this.player.y) <= this.player.r + 22) {
+        it.taken = true;
+        this.sound.playGimmickSuccess();
+        if (it.type === 'coffee') {
+          this.player.fear = Math.max(0, this.player.fear - 38);
+          this.showToast(`☕ ${it.label} を取得（恐怖心 -38%）`);
+        } else if (it.type === 'battery') {
+          this.player.battery = Math.min(100, this.player.battery + 45);
+          this.showToast(`🔋 ${it.label} を取得（バッテリー +45%）`);
+        } else if (it.type === 'sneaker') {
+          this.player.speedBoostTimer = 420;
+          this.showToast(`👟 ${it.label} を取得（7秒間スピードアップ！）`);
+        } else if (it.type === 'saline') {
+          this.player.traps += 2;
+          this.showToast(`💧 ${it.label} を取得（トラップ +2個）`);
+        }
+      }
+    }
+
+    // Secret Charts Pickup
+    for (const sc of this.secretCharts) {
+      if (!sc.taken && Math.hypot(sc.x - this.player.x, sc.y - this.player.y) <= this.player.r + 24) {
+        sc.taken = true;
+        if (!this.saveData.charts.includes(sc.id)) {
+          this.saveData.charts.push(sc.id);
+        }
+        this.sound.playGimmickSuccess();
+        this.addMp(35, `極秘カルテ「${sc.title}」回収`);
+      }
+    }
+
+    // Update Saline Traps
+    for (let i = this.traps.length - 1; i >= 0; i--) {
+      this.traps[i].life--;
+      if (this.traps[i].life <= 0) this.traps.splice(i, 1);
+    }
+
+    // Update Nurse Call Lure
+    if (this.nurseCallLure.active) {
+      this.nurseCallLure.timer--;
+      if (this.nurseCallLure.timer <= 0) this.nurseCallLure.active = false;
+    }
+
+    // 3. Flashlight Cone Calculation & Ghosts Update
+    const lensRangeBoost = this.saveData.selectedLens === 'emerald_eye' ? 1.15 : 1.0;
+    const lightRange = (255 + (this.saveData.upgrades.lightOutput - 1) * 26) * lensRangeBoost;
+    const halfConeRad = ((33 + (this.saveData.upgrades.lightOutput - 1) * 3) * Math.PI) / 180;
+    const dirX = Math.cos(this.player.angle);
+    const dirY = Math.sin(this.player.angle);
+
+    const curseSpeedMult = (this.saveData.activeCurses || []).includes('haste_ward') ? 1.25 : 1.0;
+    const diffSpeedMult = this.saveData.difficulty === 'NIGHTMARE' ? 1.15 : 1.0;
+    const mentalFactor = Math.max(0.5, 1 - (this.saveData.upgrades.mentalRes - 1) * 0.11);
+
+    for (const g of this.ghosts) {
+      g.slowed = false;
+      const targetX = this.nurseCallLure.active ? this.nurseCallLure.x : this.player.x;
+      const targetY = this.nurseCallLure.active ? this.nurseCallLure.y : this.player.y;
+      const dx = g.x - this.player.x;
+      const dy = g.y - this.player.y;
+      const distToPlayer = Math.hypot(dx, dy) || 1;
+
+      if (this.player.battery > 0 && distToPlayer <= lightRange) {
+        const dot = (dx / distToPlayer) * dirX + (dy / distToPlayer) * dirY;
+        if (dot >= Math.cos(halfConeRad)) {
+          g.slowed = true;
+        }
+      }
+
+      for (const t of this.traps) {
+        if (Math.hypot(g.x - t.x, g.y - t.y) <= t.r + g.r) {
+          if (g.stunTimer <= 0) {
+            this.unlockGhostCodexBySubType(g.subType);
+          }
+          g.stunTimer = 110;
+        }
+      }
+
+      if (g.stunTimer > 0) {
+        g.stunTimer--;
+      } else {
+        const uvSlow = this.saveData.selectedLens === 'uv_violet' ? 0.11 : 0.18;
+        const curSpd = (g.slowed ? g.baseSpeed * uvSlow : g.baseSpeed) * curseSpeedMult * diffSpeedMult;
+        const tdx = targetX - g.x;
+        const tdy = targetY - g.y;
+        const tDist = Math.hypot(tdx, tdy) || 1;
+        g.x += (tdx / tDist) * curSpd;
+        g.y += (tdy / tDist) * curSpd;
+      }
+
+      // Contact with Player
+      if (g.stunTimer <= 0 && distToPlayer <= this.player.r + g.r) {
+        this.player.fear = Math.min(100, this.player.fear + 0.36 * mentalFactor);
+        if (this.player.grabImmuneTimer <= 0 && Math.random() < 0.025) {
+          this.triggerGrab(g);
+          break;
+        }
+      }
+    }
+
+    // 4. Boss AI & Unique Skills Update
+    this.updateBossBehavior(lightRange, halfConeRad, dirX, dirY, curseSpeedMult * diffSpeedMult, mentalFactor);
+
+    // 5. Update Boss Projectiles, Hazards, Scream Waves & Dark Miasmas
+    this.updateHazardsAndProjectiles(mentalFactor);
+
+    // 6. Update Action Button Context Label (Interact vs Saline Trap)
+    this.updateInteractButtonContext();
+
+    // 6.5 Poltergeist Ambient Horror Events
+    if (!this.stageBossPurified) {
+      this.poltergeistTimer--;
+      if (this.poltergeistTimer <= 0) {
+        this.poltergeistTimer = 340 + Math.floor(Math.random() * 220);
+        const roll = Math.random();
+        if (roll < 0.36) {
+          this.floorBloodText = {
+            x: this.player.x + (Math.random() - 0.5) * 180,
+            y: this.player.y + (Math.random() - 0.5) * 140,
+            text: ['うしろにいる', 'にげられない', 'カルテをかえせ', 'ひかりをけせ'][Math.floor(Math.random() * 4)],
+            life: 210
+          };
+        } else if (roll < 0.72) {
+          this.phantomWheelchair = {
+            x: Math.max(60, Math.min(this.worldW - 60, this.player.x - 240)),
+            y: this.player.y + (Math.random() - 0.5) * 110,
+            vx: 6.5,
+            life: 75
+          };
+          this.sound.playBossSkillAlert();
+        } else {
+          this.cornerPeeker = { side: Math.random() < 0.5 ? 'left' : 'right', life: 95 };
+        }
+      }
+    }
+    if (this.floorBloodText) {
+      this.floorBloodText.life--;
+      if (this.floorBloodText.life <= 0) this.floorBloodText = null;
+    }
+    if (this.phantomWheelchair) {
+      this.phantomWheelchair.x += this.phantomWheelchair.vx;
+      this.phantomWheelchair.life--;
+      if (Math.hypot(this.phantomWheelchair.x - this.player.x, this.phantomWheelchair.y - this.player.y) < 34) {
+        this.player.fear = Math.min(100, this.player.fear + 6 * mentalFactor);
+      }
+      if (this.phantomWheelchair.life <= 0) this.phantomWheelchair = null;
+    }
+    if (this.cornerPeeker) {
+      this.cornerPeeker.life--;
+      if (this.cornerPeeker.life <= 0) this.cornerPeeker = null;
+    }
+
+    // 7. Heartbeat Audio & HUD Gauges
+    this.stageMaxFear = Math.max(this.stageMaxFear, this.player.fear);
+    const fearRatio = this.player.fear / 100;
+    this.heartbeatTimer++;
+    const beatInterval = Math.max(18, Math.round(52 - fearRatio * 34));
+    if (this.heartbeatTimer >= beatInterval) {
+      this.heartbeatTimer = 0;
+      if (this.player.fear > 20) {
+        this.sound.playHeartbeat(fearRatio);
+      }
+    }
+
+    this.updateHudGauges();
+    if (this.player.fear >= 100) {
+      this.triggerGameOver();
+    }
+  }
+
+  movePlayerWithSlide(dx, dy) {
+    const r = this.player.r;
+    // Try X
+    let nextX = Math.max(28, Math.min(this.worldW - 28, this.player.x + dx));
+    let hitX = false;
+    for (const w of this.walls) {
+      if (nextX + r > w.x && nextX - r < w.x + w.w && this.player.y + r > w.y && this.player.y - r < w.y + w.h) {
+        hitX = true;
+        break;
+      }
+    }
+    if (!hitX) this.player.x = nextX;
+
+    // Try Y
+    let nextY = Math.max(28, Math.min(this.worldH - 28, this.player.y + dy));
+    let hitY = false;
+    for (const w of this.walls) {
+      if (this.player.x + r > w.x && this.player.x - r < w.x + w.w && nextY + r > w.y && nextY - r < w.y + w.h) {
+        hitY = true;
+        break;
+      }
+    }
+    if (!hitY) this.player.y = nextY;
+  }
+
+  updateBossBehavior(lightRange, halfConeRad, dirX, dirY, speedMult, mentalFactor) {
+    if (!this.boss || this.stageBossPurified) return;
+    const b = this.boss;
+
+    for (const t of this.traps) {
+      if (Math.hypot(b.x - t.x, b.y - t.y) <= t.r + b.r) {
+        b.stunTimer = Math.max(b.stunTimer, 75);
+      }
+    }
+
+    if (b.stunTimer > 0) {
+      b.stunTimer--;
+      return;
+    }
+
+    const dx = this.player.x - b.x;
+    const dy = this.player.y - b.y;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    // Check if boss is in flashlight cone
+    let inLight = false;
+    if (this.player.battery > 0 && dist <= lightRange && !b.immuneToLight) {
+      const dot = ((-dx) / dist) * dirX + ((-dy) / dist) * dirY;
+      if (dot >= Math.cos(halfConeRad)) inLight = true;
+    }
+    const moveSpd = (inLight ? b.speed * 0.35 : b.speed) * speedMult;
+
+    // --- BOSS 1: GIANT SHADOW PATIENT ---
+    if (b.type === 'shadow_patient') {
+      b.x += (dx / dist) * moveSpd;
+      b.y += (dy / dist) * moveSpd;
+
+      b.skillTimer--;
+      if (b.skillTimer <= 0) {
+        b.skillTimer = 175;
+        this.sound.playBossSkillAlert();
+        // Spawn 3 dark tentacle slam telegraphs around player
+        for (let i = 0; i < 3; i++) {
+          const ang = (Math.PI * 2 * i) / 3 + Math.random();
+          this.bossHazards.push({
+            type: 'tentacle_slam',
+            x: this.player.x + Math.cos(ang) * 55,
+            y: this.player.y + Math.sin(ang) * 55,
+            r: 42,
+            warnTimer: 45,
+            activeTimer: 25
+          });
+        }
+        b.pullActiveTimer = 50;
+      }
+      if (b.pullActiveTimer > 0) {
+        b.pullActiveTimer--;
+        this.movePlayerWithSlide((-dx / dist) * 1.15, (-dy / dist) * 1.15);
+      }
+    }
+
+    // --- BOSS 2: HIGH-SPEED WHEELCHAIR GHOST ---
+    else if (b.type === 'wheelchair_ghost') {
+      if (b.toppledTimer > 0) {
+        b.toppledTimer--;
+        return;
+      }
+      b.wheelRot = (b.wheelRot || 0) + 0.25;
+
+      if (b.aimTelegraphTimer > 0) {
+        b.aimTelegraphTimer--;
+        if (b.aimTelegraphTimer === 0) {
+          b.dashTimer = 38;
+          this.sound.playBossSkillAlert();
+        }
+      } else if (b.dashTimer > 0) {
+        b.dashTimer--;
+        b.x = Math.max(40, Math.min(this.worldW - 40, b.x + b.dashVx));
+        b.y = Math.max(40, Math.min(this.worldH - 40, b.y + b.dashVy));
+
+        // Check collision with yellow-black bump traps
+        for (const gim of this.gimmicks) {
+          if (gim.type === 'bump_trap' && Math.hypot(b.x - gim.x, b.y - gim.y) <= gim.r + b.r) {
+            b.toppledTimer = 240; // 4 seconds vulnerable to Flash Burst
+            b.dashTimer = 0;
+            this.sound.playGimmickSuccess();
+            this.showToast('💥 車椅子ボスが段差に激突して転倒！今すぐ近づいて「⚡フラッシュ」を撃て！', 3500);
+            break;
+          }
+        }
+      } else {
+        b.x += (dx / dist) * (moveSpd * 0.65);
+        b.y += (dy / dist) * (moveSpd * 0.65);
+        b.chargeTimer--;
+        if (b.chargeTimer <= 0) {
+          b.chargeTimer = 115;
+          b.aimTelegraphTimer = 36;
+          b.dashVx = (dx / dist) * 9.2;
+          b.dashVy = (dy / dist) * 9.2;
+        }
+      }
+    }
+
+    // --- BOSS 3: MAD SURGEON PHANTOM ---
+    else if (b.type === 'mad_surgeon') {
+      b.x += (dx / dist) * moveSpd;
+      b.y += (dy / dist) * moveSpd;
+
+      b.throwTimer--;
+      if (b.throwTimer <= 0) {
+        b.throwTimer = 95;
+        this.sound.playBossSkillAlert();
+        const baseAng = Math.atan2(dy, dx);
+        [-0.26, 0, 0.26].forEach(offset => {
+          this.projectiles.push({
+            kind: 'scalpel',
+            x: b.x,
+            y: b.y,
+            vx: Math.cos(baseAng + offset) * 5.8,
+            vy: Math.sin(baseAng + offset) * 5.8,
+            r: 8,
+            life: 140
+          });
+        });
+      }
+
+      b.teleportTimer--;
+      if (b.teleportTimer <= 0) {
+        b.teleportTimer = 230;
+        this.bossHazards.push({
+          type: 'poison_gas',
+          x: b.x,
+          y: b.y,
+          r: 65,
+          warnTimer: 10,
+          activeTimer: 120
+        });
+        const randAng = Math.random() * Math.PI * 2;
+        b.x = Math.max(80, Math.min(this.worldW - 80, this.player.x + Math.cos(randAng) * 210));
+        b.y = Math.max(80, Math.min(this.worldH - 80, this.player.y + Math.sin(randAng) * 210));
+      }
+    }
+
+    // --- BOSS 4: WEEPING BLOOD-TEARS NURSE ---
+    else if (b.type === 'weeping_nurse') {
+      b.x += (dx / dist) * moveSpd;
+      b.y += (dy / dist) * moveSpd;
+
+      b.screamTimer--;
+      if (b.screamTimer <= 0) {
+        b.screamTimer = 140;
+        this.sound.playBossSkillAlert();
+        this.screamWaves.push({
+          x: b.x,
+          y: b.y,
+          r: 20,
+          maxR: 290
+        });
+      }
+
+      b.hairBindTimer--;
+      if (b.hairBindTimer <= 0) {
+        b.hairBindTimer = 175;
+        const baseAng = Math.atan2(dy, dx);
+        [-0.2, 0.2].forEach(off => {
+          this.projectiles.push({
+            kind: 'hair_orb',
+            x: b.x,
+            y: b.y,
+            vx: Math.cos(baseAng + off) * 4.4,
+            vy: Math.sin(baseAng + off) * 4.4,
+            r: 11,
+            life: 150
+          });
+        });
+      }
+    }
+
+    // --- BOSS 5: FINAL BOSS LEGION CORE ---
+    else if (b.type === 'legion_core') {
+      b.tentaclePhase = (b.tentaclePhase || 0) + 0.08;
+      b.x += (dx / dist) * moveSpd;
+      b.y += (dy / dist) * moveSpd;
+
+      b.miasmaTimer--;
+      if (b.miasmaTimer <= 0) {
+        b.miasmaTimer = 135;
+        if (this.darkMiasmas.length < 4) {
+          this.darkMiasmas.push({
+            x: b.x,
+            y: b.y,
+            r: 36,
+            speed: 1.55
+          });
+        }
+      }
+
+      if (b.laserChargeTimer > 0) {
+        b.laserChargeTimer--;
+        if (b.laserChargeTimer <= 45) {
+          b.laserAngle = Math.atan2(dy, dx);
+        }
+        if (b.laserChargeTimer === 0) {
+          b.laserFireTimer = 35;
+          this.sound.playBossSkillAlert();
+        }
+      } else if (b.laserFireTimer > 0) {
+        b.laserFireTimer--;
+        // Check player distance to blood laser line
+        const lx = Math.cos(b.laserAngle);
+        const ly = Math.sin(b.laserAngle);
+        const proj = dx * lx + dy * ly;
+        if (proj > 0 && proj < 700) {
+          const perpDist = Math.abs(dx * (-ly) + dy * lx);
+          if (perpDist < 26) {
+            this.player.fear = Math.min(100, this.player.fear + 0.65 * mentalFactor);
+          }
+        }
+        if (b.laserFireTimer === 0) {
+          b.laserChargeTimer = 210;
+        }
+      }
+    }
+
+    // Boss Direct Contact Damage
+    if (dist <= this.player.r + b.r) {
+      this.player.fear = Math.min(100, this.player.fear + 0.58 * mentalFactor);
+    }
+  }
+
+  updateHazardsAndProjectiles(mentalFactor) {
+    // Projectiles (Scalpels & Hair Orbs)
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+      if (Math.hypot(p.x - this.player.x, p.y - this.player.y) <= this.player.r + p.r) {
+        this.player.fear = Math.min(100, this.player.fear + 11 * mentalFactor);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+      if (p.life <= 0) this.projectiles.splice(i, 1);
+    }
+
+    // Ground Hazards (Tentacle Slams & Poison Gas)
+    for (let i = this.bossHazards.length - 1; i >= 0; i--) {
+      const h = this.bossHazards[i];
+      if (h.warnTimer > 0) {
+        h.warnTimer--;
+      } else if (h.activeTimer > 0) {
+        h.activeTimer--;
+        if (Math.hypot(h.x - this.player.x, h.y - this.player.y) <= h.r + this.player.r) {
+          this.player.fear = Math.min(100, this.player.fear + 0.45 * mentalFactor);
+        }
+      } else {
+        this.bossHazards.splice(i, 1);
+      }
+    }
+
+    // Stage 4 Scream Waves
+    for (let i = this.screamWaves.length - 1; i >= 0; i--) {
+      const w = this.screamWaves[i];
+      w.r += 4.2;
+      const d = Math.hypot(w.x - this.player.x, w.y - this.player.y);
+      if (Math.abs(d - w.r) < 14) {
+        this.player.fear = Math.min(100, this.player.fear + 0.55 * mentalFactor);
+      }
+      if (w.r >= w.maxR) this.screamWaves.splice(i, 1);
+    }
+
+    // Stage 5 Dark Miasmas
+    for (const m of this.darkMiasmas) {
+      const dx = this.player.x - m.x;
+      const dy = this.player.y - m.y;
+      const d = Math.hypot(dx, dy) || 1;
+      m.x += (dx / d) * m.speed;
+      m.y += (dy / d) * m.speed;
+      if (d <= this.player.r + m.r) {
+        this.player.fear = Math.min(100, this.player.fear + 0.42 * mentalFactor);
+      }
+    }
+  }
+
+  updateInteractButtonContext() {
+    let nearGim = null;
+    for (const g of this.gimmicks) {
+      if (g.type === 'bump_trap' || g.type === 'surgical_zone') continue;
+      if (Math.hypot(g.x - this.player.x, g.y - this.player.y) <= g.r + 44) {
+        nearGim = g;
+        break;
+      }
+    }
+    const iconEl = document.getElementById('interactBtnIcon');
+    const labelEl = document.getElementById('interactBtnLabel');
+    const subEl = document.getElementById('interactBtnSub');
+    if (!iconEl || !labelEl || !subEl) return;
+
+    if (nearGim) {
+      iconEl.textContent = nearGim.type === 'exit_stairs' ? '🚪' : '🔍';
+      labelEl.textContent = nearGim.type === 'exit_stairs' ? '次の階へ' : '調べる';
+      subEl.textContent = 'TAP / E';
+    } else {
+      iconEl.textContent = '💧';
+      labelEl.textContent = '食塩水';
+      subEl.textContent = `残:${this.player.traps}`;
+    }
+  }
+
+  updateHudGauges() {
+    const fPct = Math.min(100, Math.max(0, Math.round(this.player.fear)));
+    const bPct = Math.min(100, Math.max(0, Math.round(this.player.battery)));
+    const fBar = document.getElementById('fearBar');
+    const fTxt = document.getElementById('fearValText');
+    const bBar = document.getElementById('batteryBar');
+    const bTxt = document.getElementById('batteryValText');
+
+    if (fBar) fBar.style.width = `${fPct}%`;
+    if (fTxt) fTxt.textContent = `${fPct}%`;
+    if (bBar) bBar.style.width = `${bPct}%`;
+    if (bTxt) bTxt.textContent = `${bPct}%`;
+
+    const vig = document.getElementById('fearVignette');
+    if (vig) {
+      if (fPct > 35) {
+        const spread = Math.round((fPct - 35) * 1.4);
+        vig.style.boxShadow = `inset 0 0 ${spread}px ${Math.round(spread * 0.5)}px rgba(220, 38, 38, 0.55)`;
+      } else {
+        vig.style.boxShadow = 'none';
+      }
+    }
+  }
+
+  /**
+   * ============================================================================
+   * 16. RENDER PIPELINE (PIXEL ART NURSE, SADAKO GHOSTS, HUMAN-MONSTER BOSSES)
+   * ============================================================================
+   */
+  draw() {
+    const cw = Math.max(1, this.canvas.width);
+    const ch = Math.max(1, this.canvas.height);
+    if (this.darkCanvas.width !== cw || this.darkCanvas.height !== ch) {
+      this.darkCanvas.width = cw;
+      this.darkCanvas.height = ch;
+    }
+
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, cw, ch);
+
+    const camX = this.player.x - cw / 2;
+    const camY = this.player.y - ch / 2;
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    // 1. Hospital Floor Tiles (Stage-themed colors)
+    const floorThemes = {
+      1: ['#141820', '#1d2430'],
+      2: ['#121c1c', '#1a2828'],
+      3: ['#101e1a', '#182c26'],
+      4: ['#1c1420', '#271c2e'],
+      5: ['#201214', '#2d191c']
+    };
+    const theme = floorThemes[this.stage] || floorThemes[1];
+    ctx.fillStyle = theme[0];
+    ctx.fillRect(0, 0, this.worldW, this.worldH);
+
+    ctx.strokeStyle = theme[1];
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= this.worldW; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, this.worldH);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= this.worldH; y += 48) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(this.worldW, y);
+      ctx.stroke();
+    }
+
+    // 2. Gimmicks & Floor Zones
+    for (const g of this.gimmicks) {
+      if (g.type === 'surgical_zone') {
+        ctx.save();
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      } else if (g.type === 'bump_trap') {
+        ctx.save();
+        ctx.fillStyle = '#eab308';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 11px "DotGothic16", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚠️段差トラップ', g.x, g.y + 4);
+        ctx.restore();
+      } else if (g.type === 'exit_stairs') {
+        ctx.save();
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.35)';
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ecfdf5';
+        ctx.font = 'bold 12px "DotGothic16", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('🚪非常階段', g.x, g.y + 4);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.fillStyle = g.active ? '#10b981' : '#f43f5e';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.fillRect(g.x - 16, g.y - 16, 32, 32);
+        ctx.strokeRect(g.x - 16, g.y - 16, 32, 32);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '11px "DotGothic16", monospace';
+        ctx.textAlign = 'center';
+        let label = g.label;
+        if (g.type === 'note' && this.passcodeKnown) {
+          label = `暗証番号:【${this.stagePasscode}】`;
+        }
+        ctx.fillText(label, g.x, g.y - 22);
+        ctx.restore();
+      }
+    }
+
+    // 3. Saline Traps
+    for (const t of this.traps) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.32)';
+      ctx.strokeStyle = '#67e8f9';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3.5 Poltergeist Blood Text & Phantom Wheelchair
+    if (this.floorBloodText) {
+      ctx.save();
+      ctx.fillStyle = `rgba(220, 38, 38, ${Math.min(0.85, this.floorBloodText.life / 60)})`;
+      ctx.font = 'bold 16px "DotGothic16", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.floorBloodText.text, this.floorBloodText.x, this.floorBloodText.y);
+      ctx.restore();
+    }
+    if (this.phantomWheelchair) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.fillRect(this.phantomWheelchair.x - 14, this.phantomWheelchair.y - 14, 28, 28);
+      ctx.fillStyle = '#fecaca';
+      ctx.font = '10px "DotGothic16", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('🦼怪奇車椅子', this.phantomWheelchair.x, this.phantomWheelchair.y - 18);
+      ctx.restore();
+    }
+
+    // 4. Items & Secret Charts
+    for (const it of this.items) {
+      if (it.taken) continue;
+      ctx.save();
+      ctx.fillStyle = it.type === 'coffee' ? '#f59e0b' : (it.type === 'battery' ? '#fde047' : '#38bdf8');
+      ctx.fillRect(it.x - 10, it.y - 10, 20, 20);
+      ctx.fillStyle = '#fff';
+      ctx.font = '10px "DotGothic16", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(it.label, it.x, it.y - 14);
+      ctx.restore();
+    }
+
+    for (const sc of this.secretCharts) {
+      if (sc.taken) continue;
+      ctx.save();
+      ctx.fillStyle = '#a855f7';
+      ctx.strokeStyle = '#f3e8ff';
+      ctx.lineWidth = 2;
+      ctx.fillRect(sc.x - 11, sc.y - 13, 22, 26);
+      ctx.strokeRect(sc.x - 11, sc.y - 13, 22, 26);
+      ctx.fillStyle = '#e9d5ff';
+      ctx.font = '10px "DotGothic16", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('📁極秘カルテ', sc.x, sc.y - 18);
+      ctx.restore();
+    }
+
+    // 5. Hospital Walls
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    for (const w of this.walls) {
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+      ctx.strokeRect(w.x, w.y, w.w, w.h);
+    }
+
+    // 6. Boss Hazards, Scream Waves & Dark Miasmas
+    for (const h of this.bossHazards) {
+      ctx.save();
+      if (h.warnTimer > 0) {
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.85)';
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = h.type === 'poison_gas' ? 'rgba(34, 197, 94, 0.45)' : 'rgba(15, 23, 42, 0.9)';
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    for (const w of this.screamWaves) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(244, 63, 94, 0.85)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const m of this.darkMiasmas) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(88, 28, 135, 0.75)';
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 7. Projectiles
+    for (const p of this.projectiles) {
+      ctx.save();
+      ctx.fillStyle = p.kind === 'scalpel' ? '#e2e8f0' : '#ef4444';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 8. Sadako Pixel-Art Ghosts
+    for (const g of this.ghosts) {
+      this.drawHorrorGhost(ctx, g);
+    }
+
+    // 9. Human-Based Monster Pixel-Art Boss
+    if (this.boss && !this.stageBossPurified) {
+      this.drawHorrorBoss(ctx, this.boss);
+    }
+
+    // 10. 16x16 Pixel-Art Nurse Player & Objective Compass
+    this.drawPixelNurse(ctx);
+    if (this.compassEnabled) {
+      this.drawObjectiveCompass(ctx);
+    }
+
+    ctx.restore();
+
+    // 11. Darkness & Flashlight Cone Mask
+    if (!this.roomFullyLit) {
+      const dCtx = this.darkCtx;
+      dCtx.globalCompositeOperation = 'source-over';
+      dCtx.fillStyle = 'rgba(2, 4, 9, 0.94)';
+      dCtx.fillRect(0, 0, cw, ch);
+
+      const flickerCurse = (this.saveData.activeCurses || []).includes('flicker');
+      const flickerOff = flickerCurse && (Math.floor(performance.now() / 120) % 13 === 0);
+
+      if (this.player.battery > 0 && !flickerOff) {
+        dCtx.globalCompositeOperation = 'destination-out';
+        const cx = cw / 2;
+        const cy = ch / 2;
+
+        // Soft ambient circle around nurse
+        const selfGrad = dCtx.createRadialGradient(cx, cy, 6, cx, cy, 56);
+        selfGrad.addColorStop(0, 'rgba(0,0,0,1)');
+        selfGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        dCtx.fillStyle = selfGrad;
+        dCtx.beginPath();
+        dCtx.arc(cx, cy, 56, 0, Math.PI * 2);
+        dCtx.fill();
+
+        // Flashlight Sector Beam
+        const lensBoost = this.saveData.selectedLens === 'emerald_eye' ? 1.15 : 1.0;
+        const beamRange = (265 + (this.saveData.upgrades.lightOutput - 1) * 26) * lensBoost;
+        const halfSpread = ((33 + (this.saveData.upgrades.lightOutput - 1) * 3) * Math.PI) / 180;
+
+        const beamGrad = dCtx.createRadialGradient(cx, cy, 12, cx, cy, beamRange);
+        beamGrad.addColorStop(0, 'rgba(0,0,0,1)');
+        beamGrad.addColorStop(0.82, 'rgba(0,0,0,0.88)');
+        beamGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        dCtx.fillStyle = beamGrad;
+        dCtx.beginPath();
+        dCtx.moveTo(cx, cy);
+        dCtx.arc(cx, cy, beamRange, this.player.angle - halfSpread, this.player.angle + halfSpread);
+        dCtx.closePath();
+        dCtx.fill();
+
+        // Colored lens tint over the beam
+        const lensObj = FLASHLIGHT_LENSES.find(l => l.id === this.saveData.selectedLens) || FLASHLIGHT_LENSES[0];
+        ctx.save();
+        ctx.fillStyle = `rgba(${lensObj.colorRgb}, 0.09)`;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, beamRange, this.player.angle - halfSpread, this.player.angle + halfSpread);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (this.darkCanvas.width > 0 && this.darkCanvas.height > 0) {
+        ctx.drawImage(this.darkCanvas, 0, 0);
+      }
+    }
+
+    // 12. Flash Burst Screen Effect
+    if (this.flashScreenAlpha > 0) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${this.flashScreenAlpha})`;
+      ctx.fillRect(0, 0, cw, ch);
+    }
+
+    // 12.5 Poltergeist Corner Peeker Silhouette
+    if (this.cornerPeeker) {
+      ctx.save();
+      const px = this.cornerPeeker.side === 'left' ? 28 : cw - 28;
+      const py = ch * 0.52;
+      ctx.fillStyle = 'rgba(9, 9, 11, 0.92)';
+      ctx.beginPath();
+      ctx.arc(px, py, 38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(this.cornerPeeker.side === 'left' ? px + 12 : px - 12, py - 4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 13. Top-Left Minimap & Top-Center Boss Status Bar
+    this.drawMinimap(ctx);
+    this.drawBossStatusBanner(ctx, cw);
+  }
+
+  drawPixelNurse(ctx) {
+    const p = this.player;
+    if (p.grabImmuneTimer > 0 && Math.floor(p.grabImmuneTimer / 4) % 2 === 0) {
+      ctx.globalAlpha = 0.55;
+    }
+
+    const costume = NURSE_COSTUMES.find(c => c.id === this.saveData.selectedCostume) || NURSE_COSTUMES[0];
+    const pxSize = 2.2;
+    const startX = p.x - (16 * pxSize) / 2;
+    const startY = p.y - (16 * pxSize) / 2;
+    const stepShift = (p.walkFrame === 1 ? -1 : (p.walkFrame === 3 ? 1 : 0));
+
+    // Shadow under feet
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 15, 11, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 16x16 Nurse Pixel Matrix
+    const sprite = [
+      "....WWWWWWWW....",
+      "...WWWWCCWWWW...",
+      "...WWWCCCCWWW...",
+      "...WWWWCCWWWW...",
+      "..HHHHHHHHHHHH..",
+      "..HSSSSSSSSSSH..",
+      "..HSKSSSSSSKSH..",
+      "..HSSSSSSSSSSH..",
+      "...UUUUUUUUUU...",
+      "..CCCCCCCCCCCC..",
+      "..CCCCCCCCCCCC..",
+      "..CCCCCCCCCCCC..",
+      "...CCCCCCCCCC...",
+      "....LLL..RRR....",
+      "....LLL..RRR....",
+      "....BBB..BBB...."
+    ];
+
+    const palette = {
+      W: '#ffffff',
+      C: costume.coat,
+      U: costume.collar,
+      H: costume.hair,
+      S: p.fear > 65 ? '#bfdbfe' : '#fde68a',
+      K: '#0f172a',
+      L: '#e2e8f0',
+      R: '#e2e8f0',
+      B: '#dc2626'
+    };
+
+    for (let r = 0; r < 16; r++) {
+      const row = sprite[r];
+      for (let c = 0; c < 16; c++) {
+        const ch = row[c];
+        if (ch === '.') continue;
+        let color = palette[ch] || '#fff';
+        if (r <= 3 && ch === 'C') color = costume.cross;
+        let offsetY = 0;
+        if (r >= 13 && ch === 'L') offsetY = stepShift * 2;
+        if (r >= 13 && ch === 'R') offsetY = -stepShift * 2;
+        ctx.fillStyle = color;
+        ctx.fillRect(startX + c * pxSize, startY + r * pxSize + offsetY, pxSize + 0.4, pxSize + 0.4);
+      }
+    }
+
+    // Handheld Flashlight indicator
+    const fx = p.x + Math.cos(p.angle) * 14;
+    const fy = p.y + Math.sin(p.angle) * 14;
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.arc(fx, fy, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 1.0;
+  }
+
+  drawHorrorGhost(ctx, g) {
+    const matrix = SADAKO_SPRITES[g.subType] || SADAKO_SPRITES.walker;
+    const px = 2.2;
+    const bobY = Math.sin(performance.now() * 0.008 + g.phaseOffset) * 3;
+    const sx = g.x - (16 * px) / 2;
+    const sy = g.y - (16 * px) / 2 + bobY;
+
+    // Aura
+    ctx.save();
+    if (g.variant === 'golden_chart') {
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.28)';
+    } else if (g.variant === 'red_mutant') {
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
+    } else {
+      ctx.fillStyle = g.slowed ? 'rgba(253, 224, 71, 0.22)' : 'rgba(15, 23, 42, 0.55)';
+    }
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, g.r + 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    const gownColor = g.variant === 'golden_chart' ? '#fef08a' : (g.variant === 'red_mutant' ? '#fca5a5' : (g.stunTimer > 0 ? '#7dd3fc' : '#e2e8f0'));
+    const palette = {
+      K: '#09090b',
+      W: gownColor,
+      G: '#94a3b8',
+      R: '#ef4444'
+    };
+
+    for (let r = 0; r < 16; r++) {
+      const row = matrix[r];
+      for (let c = 0; c < 16; c++) {
+        const ch = row[c];
+        if (ch === '.') continue;
+        ctx.fillStyle = palette[ch] || '#fff';
+        ctx.fillRect(sx + c * px, sy + r * px, px + 0.35, px + 0.35);
+      }
+    }
+    ctx.restore();
+  }
+
+  drawHorrorBoss(ctx, b) {
+    ctx.save();
+
+    // Boss telegraph lines (Stage 2 Wheelchair Laser & Stage 5 Legion Blood Laser)
+    if (b.type === 'wheelchair_ghost' && b.aimTelegraphTimer > 0) {
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x + b.dashVx * 36, b.y + b.dashVy * 36);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (b.type === 'legion_core') {
+      if (b.laserChargeTimer > 0 && b.laserChargeTimer <= 45) {
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.65)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x + Math.cos(b.laserAngle) * 680, b.y + Math.sin(b.laserAngle) * 680);
+        ctx.stroke();
+      } else if (b.laserFireTimer > 0) {
+        ctx.strokeStyle = 'rgba(220, 38, 38, 0.92)';
+        ctx.lineWidth = 24;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x + Math.cos(b.laserAngle) * 680, b.y + Math.sin(b.laserAngle) * 680);
+        ctx.stroke();
+      }
+    }
+
+    // Human-Monster Pixel-Style Body Rendering
+    const pulse = Math.sin(performance.now() * 0.008) * 3;
+    ctx.fillStyle = b.stunTimer > 0 ? 'rgba(56, 189, 248, 0.35)' : 'rgba(220, 38, 38, 0.25)';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r + 8 + pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pixelated Humanoid Monster Silhouette
+    const pSize = 4;
+    const bossGrid = [
+      "...KKKKKK...",
+      "..KKKKKKKK..",
+      "..KRRKKRRK..",
+      "..KKKKKKKK..",
+      ".BBBBBBBBBB.",
+      "BBBBBBBBBBBB",
+      "BBA.BBBB.ABB",
+      "BB..BBBB..BB",
+      "....BBBB....",
+      "...BB..BB...",
+      "..BB....BB..",
+      "..R......R.."
+    ];
+
+    let bodyColor = '#1e1b4b';
+    if (b.type === 'wheelchair_ghost') bodyColor = b.toppledTimer > 0 ? '#facc15' : '#7f1d1d';
+    else if (b.type === 'mad_surgeon') bodyColor = '#065f46';
+    else if (b.type === 'weeping_nurse') bodyColor = '#f1f5f9';
+    else if (b.type === 'legion_core') bodyColor = '#4c0519';
+
+    const ox = b.x - (12 * pSize) / 2;
+    const oy = b.y - (12 * pSize) / 2;
+
+    for (let r = 0; r < bossGrid.length; r++) {
+      const row = bossGrid[r];
+      for (let c = 0; c < row.length; c++) {
+        const ch = row[c];
+        if (ch === '.') continue;
+        ctx.fillStyle = ch === 'R' ? '#ef4444' : (ch === 'K' ? '#09090b' : bodyColor);
+        ctx.fillRect(ox + c * pSize, oy + r * pSize, pSize + 0.5, pSize + 0.5);
+      }
+    }
+
+    // Boss Nameplate
+    ctx.fillStyle = '#fecdd3';
+    ctx.font = 'bold 11px "DotGothic16", monospace';
+    ctx.textAlign = 'center';
+    const stateTag = b.toppledTimer > 0 ? '【転倒中！今すぐフラッシュ！】' : (b.stunTimer > 0 ? '【スタン中】' : '');
+    ctx.fillText(`${b.name} ${stateTag}`, b.x, b.y - b.r - 12);
+    ctx.restore();
+  }
+
+  drawObjectiveCompass(ctx) {
+    let target = null;
+    let minDist = Infinity;
+
+    if (this.stage === 1 && !this.passcodeKnown && !this.bossRushMode) {
+      const noteGim = this.gimmicks.find(g => g.type === 'note' && !g.active);
+      if (noteGim) {
+        target = noteGim;
+        minDist = Math.hypot(noteGim.x - this.player.x, noteGim.y - this.player.y);
+      }
+    } else if ((this.stage === 2 || (this.bossRushMode && this.bossRushStep === 2)) && this.boss && !this.stageBossPurified) {
+      const ecgGim = this.gimmicks.find(g => g.type === 'ecg_panel' && !g.active);
+      if (ecgGim) {
+        target = ecgGim;
+        minDist = Math.hypot(ecgGim.x - this.player.x, ecgGim.y - this.player.y);
+      } else if (this.boss.toppledTimer > 0) {
+        target = this.boss;
+        minDist = Math.hypot(this.boss.x - this.player.x, this.boss.y - this.player.y);
+      } else {
+        for (const g of this.gimmicks) {
+          if (g.type === 'bump_trap') {
+            const d = Math.hypot(g.x - this.player.x, g.y - this.player.y);
+            if (d < minDist) { minDist = d; target = g; }
+          }
+        }
+      }
+    } else if (this.stage === 4 || (this.bossRushMode && this.bossRushStep === 4)) {
+      if ((this.player.heldCharts || 0) < 3) {
+        for (const g of this.gimmicks) {
+          if (g.type === 'chart_pickup' && !g.active) {
+            const d = Math.hypot(g.x - this.player.x, g.y - this.player.y);
+            if (d < minDist) { minDist = d; target = g; }
+          }
+        }
+      } else {
+        const altar = this.gimmicks.find(g => g.type === 'nurse_station_altar');
+        if (altar) {
+          target = altar;
+          minDist = Math.hypot(altar.x - this.player.x, altar.y - this.player.y);
+        }
+      }
+    }
+
+    if (!target) {
+      for (const g of this.gimmicks) {
+        if (g.type === 'bump_trap' || g.type === 'surgical_zone' || g.type === 'nurse_call') continue;
+        if (g.type === 'exit_stairs' || !g.active) {
+          const d = Math.hypot(g.x - this.player.x, g.y - this.player.y);
+          if (d < minDist) {
+            minDist = d;
+            target = g;
+          }
+        }
+      }
+    }
+
+    if (target && minDist >= 55) {
+      const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+      const orbitR = 34;
+      const ax = this.player.x + Math.cos(angle) * orbitR;
+      const ay = this.player.y + Math.sin(angle) * orbitR;
+
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(angle);
+      ctx.fillStyle = target.type === 'exit_stairs' ? '#34d399' : '#38bdf8';
+      ctx.beginPath();
+      ctx.moveTo(9, 0);
+      ctx.lineTo(-5, -5.5);
+      ctx.lineTo(-5, 5.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Secondary purple mini-pointer for uncollected Secret Charts
+    for (const sc of this.secretCharts) {
+      if (!sc.taken) {
+        const d = Math.hypot(sc.x - this.player.x, sc.y - this.player.y);
+        if (d > 60 && d < 520) {
+          const ang = Math.atan2(sc.y - this.player.y, sc.x - this.player.x);
+          const px = this.player.x + Math.cos(ang) * 26;
+          const py = this.player.y + Math.sin(ang) * 26;
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(ang);
+          ctx.fillStyle = '#c084fc';
+          ctx.beginPath();
+          ctx.moveTo(6, 0);
+          ctx.lineTo(-4, -4);
+          ctx.lineTo(-4, 4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          break;
+        }
+      }
+    }
+  }
+
+  drawBossStatusBanner(ctx, cw) {
+    if (!this.boss || this.stageBossPurified) return;
+    const b = this.boss;
+    const boxW = Math.min(320, cw - 140);
+    const boxX = (cw - boxW) / 2;
+    const boxY = 36;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(boxX, boxY, boxW, 22);
+    ctx.strokeRect(boxX, boxY, boxW, 22);
+
+    let progressRatio = 1.0;
+    let statusHint = '';
+    if (b.type === 'shadow_patient') {
+      const total = this.gimmicks.filter(g => g.type === 'breaker').length || 3;
+      const done = this.gimmicks.filter(g => g.type === 'breaker' && g.active).length;
+      progressRatio = Math.max(0, 1 - done / total);
+      statusHint = `ブレーカー残:${total - done}`;
+    } else if (b.type === 'wheelchair_ghost') {
+      progressRatio = b.hp / (b.maxHp || 3);
+      statusHint = b.toppledTimer > 0 ? '⚡今すぐフラッシュ！' : `残フラッシュ:${b.hp}回`;
+    } else if (b.type === 'mad_surgeon') {
+      const done = this.gimmicks.filter(g => g.type === 'sub_power' && g.active).length;
+      progressRatio = Math.max(0.15, 1 - done / 3);
+      statusHint = done < 3 ? `サブ電源:${done}/3` : '⚡中央へ誘導し照射！';
+    } else if (b.type === 'weeping_nurse') {
+      progressRatio = Math.max(0.1, 1 - (this.player.heldCharts || 0) / 3);
+      statusHint = (this.player.heldCharts || 0) < 3 ? `カルテ:${this.player.heldCharts}/3` : '⚡中央の棚へ返却！';
+    } else if (b.type === 'legion_core') {
+      const done = this.gimmicks.filter(g => g.type === 'boiler_valve' && g.active).length;
+      progressRatio = Math.max(0.1, 1 - done / 3);
+      statusHint = done < 3 ? `バルブ:${done}/3` : '🔥右端レバーを引け！';
+    }
+
+    ctx.fillStyle = 'rgba(185, 28, 28, 0.75)';
+    ctx.fillRect(boxX + 2, boxY + 2, (boxW - 4) * progressRatio, 18);
+
+    ctx.fillStyle = '#fef2f2';
+    ctx.font = 'bold 10px "DotGothic16", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`👹 ${b.name} 【${statusHint}】`, boxX + boxW / 2, boxY + 14);
+    ctx.restore();
+  }
+
+  drawMinimap(ctx) {
+    const mapW = this.minimapExpanded ? 190 : 104;
+    const mapH = this.minimapExpanded ? 120 : 68;
+    const mx = 8;
+    const my = 36;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(2, 12, 8, 0.82)';
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(mx, my, mapW, mapH);
+    ctx.strokeRect(mx, my, mapW, mapH);
+
+    const sx = mapW / this.worldW;
+    const sy = mapH / this.worldH;
+
+    // Walls
+    ctx.fillStyle = '#475569';
+    for (const w of this.walls) {
+      ctx.fillRect(mx + w.x * sx, my + w.y * sy, Math.max(1, w.w * sx), Math.max(1, w.h * sy));
+    }
+
+    // Gimmicks
+    for (const g of this.gimmicks) {
+      ctx.fillStyle = g.active ? '#34d399' : '#fb7185';
+      ctx.fillRect(mx + g.x * sx - 2, my + g.y * sy - 2, 4, 4);
+    }
+
+    // Secret Charts
+    for (const sc of this.secretCharts) {
+      if (!sc.taken) {
+        ctx.fillStyle = '#c084fc';
+        ctx.fillRect(mx + sc.x * sx - 2, my + sc.y * sy - 2, 4, 4);
+      }
+    }
+
+    // Boss
+    if (this.boss && !this.stageBossPurified) {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(mx + this.boss.x * sx - 3, my + this.boss.y * sy - 3, 6, 6);
+    }
+
+    // Player
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(mx + this.player.x * sx - 3, my + this.player.y * sy - 3, 6, 6);
+    ctx.restore();
+  }
+}
+
+function startNightShiftApp() {
+  if (window.__nightShiftBooted) return;
+  window.__nightShiftBooted = true;
+  const game = new NightShiftGame();
+  function gameLoop() {
+    try {
+      game.update();
+      game.draw();
+    } catch (err) {
+      console.error(err);
+    }
+    requestAnimationFrame(gameLoop);
+  }
+  gameLoop();
+}
+
+window.onload = startNightShiftApp;
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  setTimeout(startNightShiftApp, 10);
+}
+  </script>
+</body>
+</html>
+<!-- End of NIGHT SHIFT: PULSE -->
