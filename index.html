@@ -95,34 +95,31 @@
   <div id="fearVignette" class="fear-vignette fixed inset-0 z-10"></div>
 
   <!-- ================= ULTRA-SLIM TOP HUD BAR (32px height, z-index: 600) ================= -->
-  <header id="topSlimHud" class="fixed top-0 left-0 right-0 h-[32px] bg-slate-950/85 border-b border-slate-800/90 px-2 flex items-center justify-between gap-1.5 z-[600] pointer-events-auto">
-    <!-- Left: Floor Badge & Current Objective -->
-    <div class="flex items-center gap-1.5 min-w-0 flex-shrink">
-      <span id="stageBadge" class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-900/90 border border-rose-500/70 text-rose-100 whitespace-nowrap">
+  <header id="topSlimHud" class="fixed top-0 left-0 right-0 h-[32px] bg-slate-950/90 border-b border-slate-800/90 px-1.5 sm:px-2.5 flex items-center justify-between gap-1 sm:gap-2 z-[600] pointer-events-auto overflow-x-auto">
+    <!-- Left: Floor Badge & Current Objective (Desktop) -->
+    <div class="flex items-center gap-1.5 flex-shrink-0">
+      <span id="stageBadge" class="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-900/95 border border-rose-500/80 text-rose-100 whitespace-nowrap shadow">
         1F 外来
-      </span>
-      <span id="missionText" class="text-[11px] text-amber-200 truncate max-w-[160px] sm:max-w-[290px] md:max-w-[420px]">
-        診察室の散乱したカルテから4桁の暗証番号を探せ
       </span>
     </div>
 
     <!-- Center: Compact FEAR & BATTERY Bars -->
-    <div class="flex items-center gap-2 flex-shrink-0">
+    <div class="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
       <!-- FEAR Gauge -->
-      <div class="flex items-center gap-1">
-        <span class="text-[10px] font-bold text-rose-400">💓FEAR</span>
-        <div class="w-14 sm:w-20 h-2.5 bg-slate-900 border border-rose-900/80 rounded-full overflow-hidden">
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <span class="text-[10px] font-bold text-rose-400 whitespace-nowrap">💓FEAR</span>
+        <div class="w-10 sm:w-16 md:w-20 h-2.5 bg-slate-900 border border-rose-900/80 rounded-full overflow-hidden flex-shrink-0">
           <div id="fearBar" class="h-full bg-gradient-to-r from-rose-700 via-red-600 to-rose-400 transition-all duration-100" style="width: 0%;"></div>
         </div>
-        <span id="fearValText" class="text-[10px] font-mono text-rose-300 w-7 text-right">0%</span>
+        <span id="fearValText" class="text-[10px] font-mono text-rose-300 w-6 sm:w-7 text-right">0%</span>
       </div>
       <!-- BATTERY Gauge -->
-      <div class="flex items-center gap-1">
-        <span class="text-[10px] font-bold text-amber-300">🔦BAT</span>
-        <div class="w-14 sm:w-20 h-2.5 bg-slate-900 border border-amber-900/80 rounded-full overflow-hidden">
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <span class="text-[10px] font-bold text-amber-300 whitespace-nowrap">🔦BAT</span>
+        <div class="w-10 sm:w-16 md:w-20 h-2.5 bg-slate-900 border border-amber-900/80 rounded-full overflow-hidden flex-shrink-0">
           <div id="batteryBar" class="h-full bg-gradient-to-r from-amber-600 via-yellow-400 to-emerald-300 transition-all duration-100" style="width: 100%;"></div>
         </div>
-        <span id="batteryValText" class="text-[10px] font-mono text-amber-200 w-8 text-right">100%</span>
+        <span id="batteryValText" class="text-[10px] font-mono text-amber-200 w-7 sm:w-8 text-right">100%</span>
       </div>
     </div>
 
@@ -134,7 +131,7 @@
       </div>
 
       <!-- Direct Floor Jump Mini-Buttons -->
-      <div class="hidden md:flex items-center bg-slate-900/90 rounded border border-slate-700 p-0.5 gap-0.5">
+      <div class="hidden lg:flex items-center bg-slate-900/90 rounded border border-slate-700 p-0.5 gap-0.5">
         <button type="button" data-stage-jump="1" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">1F</button>
         <button type="button" data-stage-jump="2" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">2F</button>
         <button type="button" data-stage-jump="3" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-slate-200">3F</button>
@@ -142,19 +139,19 @@
         <button type="button" data-stage-jump="5" class="ui-tap-btn px-1 text-[10px] rounded bg-slate-800 hover:bg-rose-800 text-amber-300">B1</button>
       </div>
 
-      <button type="button" id="hudBtnUpgrade" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-900/90 hover:bg-indigo-700 border border-indigo-400/80 text-indigo-100">
+      <button type="button" id="hudBtnUpgrade" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-900/90 hover:bg-indigo-700 border border-indigo-400/80 text-indigo-100 whitespace-nowrap">
         ⚡強化
       </button>
-      <button type="button" id="hudBtnEndless" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-900/90 hover:bg-rose-700 border border-rose-400/80 text-rose-100">
-        ♾️無限/衣装
+      <button type="button" id="hudBtnEndless" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-900/90 hover:bg-rose-700 border border-rose-400/80 text-rose-100 whitespace-nowrap">
+        ♾️無限
       </button>
-      <button type="button" id="hudBtnCodex" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-purple-900/90 hover:bg-purple-700 border border-purple-400/80 text-purple-100">
+      <button type="button" id="hudBtnCodex" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-purple-900/90 hover:bg-purple-700 border border-purple-400/80 text-purple-100 whitespace-nowrap">
         📖図鑑
       </button>
-      <button type="button" id="hudBtnCompass" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-900/90 hover:bg-sky-700 border border-sky-400/80 text-sky-100">
+      <button type="button" id="hudBtnCompass" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-900/90 hover:bg-sky-700 border border-sky-400/80 text-sky-100 whitespace-nowrap">
         🧭誘導ON
       </button>
-      <button type="button" id="hudBtnSupply" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-900/90 hover:bg-emerald-700 border border-emerald-400/80 text-emerald-100" title="緊急回復＆バッテリー充電">
+      <button type="button" id="hudBtnSupply" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-900/90 hover:bg-emerald-700 border border-emerald-400/80 text-emerald-100 whitespace-nowrap" title="緊急回復＆バッテリー充電">
         ＋補給
       </button>
       <button type="button" id="hudBtnSound" class="ui-tap-btn px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-800 border border-slate-600 text-slate-200">
@@ -162,6 +159,15 @@
       </button>
     </div>
   </header>
+
+  <!-- Sub-Bar for Current Objective (Positioned to the right of Minimap so it never overlaps Floor Name or FEAR) -->
+  <div class="fixed top-[34px] left-[118px] right-2 z-[450] pointer-events-none flex items-center">
+    <div class="px-2 py-0.5 rounded bg-slate-950/75 border border-slate-700/70 max-w-full overflow-hidden">
+      <span id="missionText" class="block text-[10px] sm:text-[11px] text-amber-200 truncate">
+        診察室の散乱したカルテから4桁の暗証番号を探せ
+      </span>
+    </div>
+  </div>
 
   <!-- Top-Left Minimap Interactive Overlay Button -->
   <button type="button" id="minimapToggleHitbox" class="ui-tap-btn fixed top-[36px] left-[8px] w-[104px] h-[70px] z-[400] bg-transparent border border-transparent rounded focus:outline-none" title="タップでミニマップ拡大/縮小"></button>
@@ -2259,11 +2265,8 @@ class NightShiftGame {
           <div>
             <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black mr-1">🎖️ 当直ミッション</span>
             <span class="font-bold text-amber-200 text-xs">${bounty.title}</span>
-            <span class="text-xs font-mono text-emerald-300 ml-2">進行度: ${bounty.progress} / ${bounty.target} (報酬 +${bounty.rewardMp} MP)</span>
           </div>
-          <button type="button" data-dyn-action="add-test-mp" class="ui-tap-btn px-2.5 py-1 rounded bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold border border-purple-300">
-            ＋テスト用 100 MP 獲得
-          </button>
+          <span class="text-xs font-mono text-emerald-300">進行度: ${bounty.progress} / ${bounty.target} (報酬 +${bounty.rewardMp} MP)</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           ${items.map(it => {
@@ -2482,16 +2485,13 @@ class NightShiftGame {
   }
 
   handleDynamicMenuAction(act, el) {
-    if (act === 'add-test-mp') {
-      this.addMp(100, 'テスト用ボーナス');
-      this.renderMenuTab(this.currentMenuTab);
-    } else if (act === 'buy-upg') {
+    if (act === 'buy-upg') {
       const key = el.getAttribute('data-upg-key');
       const curLv = this.saveData.upgrades[key] || 1;
       if (curLv >= 5) return;
       const cost = curLv * 45;
       if (this.saveData.mp < cost) {
-        this.showToast('⚠️ MPが足りません！（ステージ攻略やカルテ回収、または「＋テスト用100MP」で獲得可能）');
+        this.showToast('⚠️ MPが足りません！（ステージ攻略や極秘カルテ回収、当直ミッションで獲得できます）');
         return;
       }
       this.saveData.mp -= cost;
@@ -3734,12 +3734,13 @@ class NightShiftGame {
 
   drawHorrorBoss(ctx, b) {
     ctx.save();
+    const now = performance.now();
 
     // Boss telegraph lines (Stage 2 Wheelchair Laser & Stage 5 Legion Blood Laser)
     if (b.type === 'wheelchair_ghost' && b.aimTelegraphTimer > 0) {
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.92)';
+      ctx.lineWidth = 3.5;
+      ctx.setLineDash([8, 5]);
       ctx.beginPath();
       ctx.moveTo(b.x, b.y);
       ctx.lineTo(b.x + b.dashVx * 36, b.y + b.dashVy * 36);
@@ -3749,15 +3750,21 @@ class NightShiftGame {
 
     if (b.type === 'legion_core') {
       if (b.laserChargeTimer > 0 && b.laserChargeTimer <= 45) {
-        ctx.strokeStyle = 'rgba(244, 63, 94, 0.65)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.75)';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(b.x, b.y);
         ctx.lineTo(b.x + Math.cos(b.laserAngle) * 680, b.y + Math.sin(b.laserAngle) * 680);
         ctx.stroke();
       } else if (b.laserFireTimer > 0) {
-        ctx.strokeStyle = 'rgba(220, 38, 38, 0.92)';
-        ctx.lineWidth = 24;
+        ctx.strokeStyle = 'rgba(220, 38, 38, 0.95)';
+        ctx.lineWidth = 26;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(b.x + Math.cos(b.laserAngle) * 680, b.y + Math.sin(b.laserAngle) * 680);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(254, 202, 202, 0.9)';
+        ctx.lineWidth = 8;
         ctx.beginPath();
         ctx.moveTo(b.x, b.y);
         ctx.lineTo(b.x + Math.cos(b.laserAngle) * 680, b.y + Math.sin(b.laserAngle) * 680);
@@ -3765,47 +3772,333 @@ class NightShiftGame {
       }
     }
 
-    // Human-Monster Pixel-Style Body Rendering
-    const pulse = Math.sin(performance.now() * 0.008) * 3;
-    ctx.fillStyle = b.stunTimer > 0 ? 'rgba(56, 189, 248, 0.35)' : 'rgba(220, 38, 38, 0.25)';
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r + 8 + pulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pixelated Humanoid Monster Silhouette
-    const pSize = 4;
-    const bossGrid = [
-      "...KKKKKK...",
-      "..KKKKKKKK..",
-      "..KRRKKRRK..",
-      "..KKKKKKKK..",
-      ".BBBBBBBBBB.",
-      "BBBBBBBBBBBB",
-      "BBA.BBBB.ABB",
-      "BB..BBBB..BB",
-      "....BBBB....",
-      "...BB..BB...",
-      "..BB....BB..",
-      "..R......R.."
-    ];
-
-    let bodyColor = '#1e1b4b';
-    if (b.type === 'wheelchair_ghost') bodyColor = b.toppledTimer > 0 ? '#facc15' : '#7f1d1d';
-    else if (b.type === 'mad_surgeon') bodyColor = '#065f46';
-    else if (b.type === 'weeping_nurse') bodyColor = '#f1f5f9';
-    else if (b.type === 'legion_core') bodyColor = '#4c0519';
-
-    const ox = b.x - (12 * pSize) / 2;
-    const oy = b.y - (12 * pSize) / 2;
-
-    for (let r = 0; r < bossGrid.length; r++) {
-      const row = bossGrid[r];
-      for (let c = 0; c < row.length; c++) {
-        const ch = row[c];
-        if (ch === '.') continue;
-        ctx.fillStyle = ch === 'R' ? '#ef4444' : (ch === 'K' ? '#09090b' : bodyColor);
-        ctx.fillRect(ox + c * pSize, oy + r * pSize, pSize + 0.5, pSize + 0.5);
+    // Helper for rendering multi-color pixel matrices
+    const drawMatrix = (grid, px, ox, oy, palette) => {
+      for (let r = 0; r < grid.length; r++) {
+        const row = grid[r];
+        for (let c = 0; c < row.length; c++) {
+          const ch = row[c];
+          if (ch === '.') continue;
+          ctx.fillStyle = palette[ch] || '#fff';
+          ctx.fillRect(ox + c * px, oy + r * px, px + 0.45, px + 0.45);
+        }
       }
+    };
+
+    // =========================================================================
+    // 1F BOSS: クレーム患者の巨大黒影 (Writhing Tentacles & Multiple Glaring Eyes)
+    // =========================================================================
+    if (b.type === 'shadow_patient') {
+      // Writhing shadow tentacles radiating from the body
+      ctx.strokeStyle = '#09090b';
+      ctx.lineWidth = 6;
+      for (let i = 0; i < 8; i++) {
+        const baseA = (Math.PI * 2 * i) / 8 + now * 0.002;
+        const midR = b.r * 0.75;
+        const tipR = b.r + 16 + Math.sin(now * 0.008 + i * 1.4) * 8;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y + 6);
+        ctx.quadraticCurveTo(
+          b.x + Math.cos(baseA + 0.35) * midR,
+          b.y + Math.sin(baseA + 0.35) * midR,
+          b.x + Math.cos(baseA) * tipR,
+          b.y + Math.sin(baseA) * tipR
+        );
+        ctx.stroke();
+      }
+
+      // Dark miasma pool under feet
+      ctx.fillStyle = 'rgba(9, 9, 11, 0.85)';
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y + 26, 36, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const grid1F = [
+        "....KKKKKKKKKKKK....",
+        "..KKKKKKKKKKKKKKKK..",
+        ".KKKKRWYKKKKYWRKKKK.",
+        ".KKKKRRRKKKKRRRKKKK.",
+        "KKKKKKKKKKKKKKKKKKKK",
+        "KKRWRKKKKKKKKKKRWRKK",
+        "KKKKKKKKKKKKKKKKKKKK",
+        ".KKKKWWWWWWWWWWKKKK.",
+        ".KKKWWKKKKKKKKWWKKK.",
+        "..KKWKKKKKKKKKKWKK..",
+        "..KKKKKRYKKYRKKKKK..",
+        ".KKKKKKKKKKKKKKKKKK.",
+        "KKKK.KKKKKKKKKK.KKKK",
+        "KKK..KKKKKKKKKK..KKK",
+        "KK...KKKK..KKKK...KK",
+        "K....KKKK..KKKK....K",
+        ".....KKK....KKK.....",
+        "....KKKK....KKKK...."
+      ];
+      const px = 3.2;
+      drawMatrix(grid1F, px, b.x - (20 * px) / 2, b.y - (18 * px) / 2, {
+        K: b.stunTimer > 0 ? '#1e293b' : '#09090b',
+        R: '#ef4444',
+        Y: '#fde047',
+        W: '#f8fafc'
+      });
+    }
+
+    // =========================================================================
+    // 2F BOSS: 暴走車椅子の怨霊 (Twisted Patient + IV Drip + Spinning Spoked Wheels)
+    // =========================================================================
+    else if (b.type === 'wheelchair_ghost') {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      if (b.toppledTimer > 0) {
+        // Toppled sideways 90 degrees when crashed into bump trap
+        ctx.rotate(Math.PI / 2 + Math.sin(now * 0.04) * 0.08);
+      }
+
+      // IV Drip Stand & Blood Bag on the back of wheelchair
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-18, 10);
+      ctx.lineTo(-18, -36);
+      ctx.lineTo(-8, -36);
+      ctx.stroke();
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(-12, -34, 8, 12);
+
+      // Patient in blood-stained straitjacket with snapped neck
+      const grid2F = [
+        ".......KKKKKK.......",
+        "......KKKKKKKK......",
+        ".....KKRKKKKRKK.....",
+        ".....KKKKKKKKKK.....",
+        "......GGGGGGGG......",
+        "....WWWWWWWWWWWW....",
+        "...WWWRRWWWWWWWWW...",
+        "..WWWWWWWWWWWWWWWW..",
+        "..BBBBBBBBBBBBBBBB..",
+        "..BCCCCCCCCCCCCCCB..",
+        "...CCCCCCCCCCCCCC...",
+        "...BBBBBBBBBBBBBB...",
+        "....GGGG....GGGG....",
+        "....RRRR....RRRR...."
+      ];
+      const px = 2.9;
+      drawMatrix(grid2F, px, -(20 * px) / 2, -26, {
+        K: '#09090b',
+        R: '#dc2626',
+        G: '#cbd5e1',
+        W: b.toppledTimer > 0 ? '#fef08a' : '#e2e8f0',
+        B: '#475569',
+        C: '#7f1d1d'
+      });
+
+      // Left & Right Mechanical Spoked Wheels
+      const wheelRot = b.wheelRot || 0;
+      [-22, 22].forEach((wx) => {
+        ctx.save();
+        ctx.translate(wx, 12);
+        ctx.rotate(wheelRot);
+        ctx.strokeStyle = b.toppledTimer > 0 ? '#facc15' : '#cbd5e1';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 1.5;
+        for (let s = 0; s < 4; s++) {
+          const sa = (Math.PI * s) / 4;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(sa) * -13, Math.sin(sa) * -13);
+          ctx.lineTo(Math.cos(sa) * 13, Math.sin(sa) * 13);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // 3F BOSS: 狂気の執刀医の亡霊 (Head-Mirror Surgeon + 4 Bone Mechanical Arms)
+    // =========================================================================
+    else if (b.type === 'mad_surgeon') {
+      // 4 Mechanical/Bone Surgical Arms extending from back with giant blades
+      const armAngles = [-0.85, -0.35, 0.35, 0.85];
+      armAngles.forEach((ang, idx) => {
+        const sway = Math.sin(now * 0.006 + idx * 1.3) * 0.22;
+        const elbowX = b.x + (idx < 2 ? -26 : 26);
+        const elbowY = b.y - 14 + (idx % 2) * 18 + sway * 20;
+        const tipX = elbowX + (idx < 2 ? -18 : 18);
+        const tipY = elbowY - 12 + Math.cos(now * 0.008 + idx) * 8;
+
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y - 4);
+        ctx.lineTo(elbowX, elbowY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+
+        // Bloodied Giant Scalpel Blade at tip
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX + (idx < 2 ? -14 : 14), tipY - 5);
+        ctx.lineTo(tipX + (idx < 2 ? -10 : 10), tipY + 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(tipX + (idx < 2 ? -10 : 10), tipY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const grid3F = [
+        ".....GGGGGGGGGG.....",
+        "....GGGGGGGGGGGG....",
+        "....BBBBMMMMBBBB....",
+        "....BBBBMMMMBBBB....",
+        "....SSKRRRRRRKSS....",
+        "....SSWWWWWWWWSS....",
+        ".....WWWWWWWWWW.....",
+        "...GGGGGGGGGGGGGG...",
+        "..GGGGRRGGGGGGGGGG..",
+        "..GGGGrrrGGGGGGGGG..",
+        ".GGGGGGGGGGGRRGGGGG.",
+        ".RRRGGGGGGGGrrrGRRR.",
+        "..R..GGGGGGGGGG..R..",
+        ".....GGGGGGGGGG.....",
+        ".....GGGG..GGGG.....",
+        ".....KKKK..KKKK....."
+      ];
+      const px = 3.1;
+      drawMatrix(grid3F, px, b.x - (20 * px) / 2, b.y - (16 * px) / 2, {
+        G: b.stunTimer > 0 ? '#38bdf8' : '#065f46',
+        B: '#1e293b',
+        M: '#e0f2fe', // Shining Head Mirror
+        S: '#cbd5e1',
+        K: '#09090b',
+        R: '#ef4444',
+        r: '#991b1b',
+        W: '#f1f5f9'  // Surgical Mask
+      });
+    }
+
+    // =========================================================================
+    // 4F BOSS: 泣き叫ぶ血涙ナースの霊 (Floating Hair, Blood Tears & Ghost Wisps)
+    // =========================================================================
+    else if (b.type === 'weeping_nurse') {
+      const floatY = Math.sin(now * 0.006) * 5;
+
+      // Orbiting pale-blue ghost wisps
+      for (let w = 0; w < 3; w++) {
+        const wa = now * 0.003 + (w * Math.PI * 2) / 3;
+        const wx = b.x + Math.cos(wa) * 38;
+        const wy = b.y + floatY + Math.sin(wa) * 24;
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.55)';
+        ctx.beginPath();
+        ctx.arc(wx, wy, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Flowing long black hair strands beneath her
+      ctx.strokeStyle = '#09090b';
+      ctx.lineWidth = 4;
+      for (let h = -3; h <= 3; h++) {
+        ctx.beginPath();
+        ctx.moveTo(b.x + h * 6, b.y + floatY - 6);
+        ctx.quadraticCurveTo(
+          b.x + h * 9 + Math.sin(now * 0.008 + h) * 6,
+          b.y + floatY + 18,
+          b.x + h * 7,
+          b.y + floatY + 34
+        );
+        ctx.stroke();
+      }
+
+      const grid4F = [
+        ".....WWWWWWWWWW.....",
+        "....WWWWCRRCWWWW....",
+        "....WWWWRRRRWWWW....",
+        "...KKKKKKKKKKKKKK...",
+        "..KKKKSSSSSSSSKKKK..",
+        "..KKKSRRRRRRRRSKKK..",
+        "..KKKSRKSSSSKRSKKK..",
+        "..KKKSRKSSSSKRSKKK..",
+        "..KKKSRSKKKKSRSKKK..",
+        "...KKKSSSSSSSSKKK...",
+        "..KKKKWWWWWWWWKKKK..",
+        ".RKKKWWWRRRRWWWKKKR.",
+        "R.KKWWWWWWWWWWWWKK.R",
+        "...WWWWWRWWWRWWWWW..",
+        "....WWWW.WW.WWWWW...",
+        ".....WW..WW...WW...."
+      ];
+      const px = 3.1;
+      drawMatrix(grid4F, px, b.x - (20 * px) / 2, b.y + floatY - (16 * px) / 2, {
+        W: '#f8fafc',
+        C: '#dc2626',
+        R: '#ef4444',
+        K: '#09090b',
+        S: '#e2e8f0'
+      });
+    }
+
+    // =========================================================================
+    // B1F FINAL BOSS: 死の集合体・レギオン (Giant Skull Ribcage, Flesh & Many Eyes)
+    // =========================================================================
+    else if (b.type === 'legion_core') {
+      // 8 Writhing flesh tentacles & grasping pale corpse hands
+      for (let i = 0; i < 8; i++) {
+        const ang = (Math.PI * 2 * i) / 8 + Math.sin(now * 0.003 + i) * 0.25;
+        const len = b.r + 18 + Math.sin(now * 0.007 + i * 2) * 10;
+        const tx = b.x + Math.cos(ang) * len;
+        const ty = b.y + Math.sin(ang) * len;
+
+        ctx.strokeStyle = i % 2 === 0 ? '#881337' : '#4c0519';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+
+        // Pale corpse hand at the end of each tentacle
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const grid5F = [
+        "......WWWWWWWWWWWW......",
+        "....WWWWWWWWWWWWWWWW....",
+        "...GGGWWWWWWWWWWWWGGG...",
+        "..GRYGGWWKKKKKKWWGGRYG..",
+        ".GGGGGGWKKKKKKKKWGGGGGG.",
+        ".GGGGGWWKRRKKRRKWWGGGGG.",
+        "GGGGGGWWWWWWWWWWWWGGGGGG",
+        "GRYGGGGWWKWWWWKWWGGGGRYG",
+        "GGGGGGGGWWWWWWWWGGGGGGGG",
+        ".GGGGWWGGGGGGGGGGWWGGGG.",
+        ".GGGWWWWCCCCCCCCWWWWGGG.",
+        "..GGWWWWCCCCCCCCWWWWGG..",
+        "..GGGWWCCCCCCCCCCWWGGG..",
+        "...GGGGWWWWWWWWWWGGGG...",
+        "....GGRYGGGGGGGGRYGG....",
+        ".....GGGGGGGGGGGGGG....."
+      ];
+      const px = 3.5;
+      const heartColor = Math.floor(now / 160) % 2 === 0 ? '#ef4444' : '#f43f5e';
+      drawMatrix(grid5F, px, b.x - (24 * px) / 2, b.y - (16 * px) / 2, {
+        W: '#e2e8f0', // Giant Skull & Ribcage Bones
+        K: '#09090b',
+        G: b.stunTimer > 0 ? '#0284c7' : '#881337', // Flesh mass
+        R: '#ef4444', // Glowing Eyes
+        Y: '#fde047', // Yellow Pupils
+        C: heartColor // Pulsing Exposed Core Heart
+      });
     }
 
     // Boss Nameplate
@@ -3813,7 +4106,7 @@ class NightShiftGame {
     ctx.font = 'bold 11px "DotGothic16", monospace';
     ctx.textAlign = 'center';
     const stateTag = b.toppledTimer > 0 ? '【転倒中！今すぐフラッシュ！】' : (b.stunTimer > 0 ? '【スタン中】' : '');
-    ctx.fillText(`${b.name} ${stateTag}`, b.x, b.y - b.r - 12);
+    ctx.fillText(`${b.name} ${stateTag}`, b.x, b.y - b.r - 18);
     ctx.restore();
   }
 
@@ -3920,9 +4213,10 @@ class NightShiftGame {
   drawBossStatusBanner(ctx, cw) {
     if (!this.boss || this.stageBossPurified) return;
     const b = this.boss;
-    const boxW = Math.min(320, cw - 140);
-    const boxX = (cw - boxW) / 2;
-    const boxY = 36;
+    const mapOffset = this.minimapExpanded ? 202 : 118;
+    const boxW = Math.min(310, Math.max(180, cw - mapOffset - 16));
+    const boxX = Math.max(mapOffset, (cw - boxW) / 2);
+    const boxY = 56;
 
     ctx.save();
     ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
