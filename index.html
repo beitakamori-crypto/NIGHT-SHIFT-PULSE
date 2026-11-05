@@ -2114,8 +2114,13 @@ class NightShiftGame {
             this.unlockAchievement('stage2_clear');
             this.spawnStageClearStairs('暴走車椅子の怨霊を5連フラッシュで完全に浄化した！');
           } else {
-            this.setStageHud('2F 病棟・リハビリ', `💥車椅子ボスにフラッシュ直撃！（残り ${this.boss.hp} 回）未破損の黄色い段差トラップへ誘導せよ！`);
-            this.showToast(`💥 車椅子ボスにフラッシュ直撃！ 残り ${this.boss.hp} 回！（別の未破損の段差へ誘導せよ）`, 3200);
+            const remainingBumps = this.gimmicks.filter(g => g.type === 'bump_trap' && !g.broken).length;
+            if (remainingBumps === 0) {
+              this.reactivateAllBumpTraps();
+            } else {
+              this.setStageHud('2F 病棟・リハビリ', `💥車椅子ボスにフラッシュ直撃！（残り ${this.boss.hp} 回）未破損の黄色い段差トラップへ誘導せよ！`);
+              this.showToast(`💥 車椅子ボスにフラッシュ直撃！ 残り ${this.boss.hp} 回！（別の未破損の段差へ誘導せよ）`, 3200);
+            }
           }
         } else if (this.boss.type === 'director_uroboros') {
           const allVats = this.gimmicks.filter(g => g.type === 'bio_vat').every(g => g.active);
@@ -2317,7 +2322,12 @@ class NightShiftGame {
 
     if (g.type === 'ecg_panel') {
       if (g.active) {
-        this.showToast('📈 心電図配電盤は既に復旧済みです');
+        const brokenBumps = this.gimmicks.filter(x => x.type === 'bump_trap' && x.broken);
+        if (brokenBumps.length > 0 && this.boss && this.boss.hp > 0) {
+          this.reactivateAllBumpTraps();
+        } else {
+          this.showToast('📈 心電図配電盤は既に復旧済みです');
+        }
         return;
       }
       if ((this.fusesCollected || 0) < 2) {
@@ -2598,6 +2608,26 @@ class NightShiftGame {
         this.setStageHud('2F 病棟・リハビリ', '📈電力復旧！リハビリ科の段差トラップが稼働開始。車椅子ボスを段差へ誘導して転倒させよ！');
         this.showToast('📈 心電図波形が正常化！全5箇所の「リハビリ段差トラップ」の電磁ロックが解除され稼働開始＆バッテリー100%回復！');
       }
+    }
+  }
+
+  reactivateAllBumpTraps() {
+    let count = 0;
+    for (const gim of this.gimmicks) {
+      if (gim.type === 'bump_trap') {
+        gim.broken = false;
+        gim.active = true;
+        gim.label = gim.label.replace(' (電磁ロック中)', '');
+        count++;
+      }
+    }
+    if (count > 0) {
+      this.sound.playGimmickSuccess();
+      const remainHp = this.boss ? this.boss.hp : 1;
+      if (!this.bossRushMode) {
+        this.setStageHud('2F 病棟・リハビリ', `♻️全段差トラップ再起動！（ボス残りHP: ${remainHp}）再び黄色い段差トラップへ誘導せよ！`);
+      }
+      this.showToast(`♻️ ボスの体力が残っているため、すべての段差トラップが再起動しました！（残りHP: ${remainHp}）`, 3800);
     }
   }
 
@@ -3671,6 +3701,12 @@ class NightShiftGame {
     else if (b.type === 'wheelchair_ghost') {
       if (b.toppledTimer > 0) {
         b.toppledTimer--;
+        if (b.toppledTimer === 0 && b.hp > 0) {
+          const remainingBumps = this.gimmicks.filter(g => g.type === 'bump_trap' && !g.broken).length;
+          if (remainingBumps === 0) {
+            this.reactivateAllBumpTraps();
+          }
+        }
         return;
       }
       b.wheelRot = (b.wheelRot || 0) + 0.25;
